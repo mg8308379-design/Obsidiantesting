@@ -1389,8 +1389,6 @@ function Library:SafeCallback(Func: (...any) -> ...any, ...: any)
 end
 
 function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggled: boolean?, IsMainWindow: boolean?)
-    local StartPos
-    local FramePos
     local Dragging = false
     local Changed
     
@@ -1399,8 +1397,6 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
             return
         end
 
-        StartPos = Input.Position
-        FramePos = UI.Position
         Dragging = true
 
         Changed = Input.Changed:Connect(function()
@@ -1431,14 +1427,13 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
             return
         end
 
-        if Dragging and IsHoverInput(Input) then
-            local Delta = Input.Position - StartPos
-            -- Update using absolute offset scaling properly with UI scale
+        if Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
+            -- Use Input.Delta for smooth real-time movement tracking
             UI.Position = UDim2.new(
-                FramePos.X.Scale, 
-                FramePos.X.Offset + (Delta.X / Library.DPIScale), 
-                FramePos.Y.Scale, 
-                FramePos.Y.Offset + (Delta.Y / Library.DPIScale)
+                UI.Position.X.Scale, 
+                UI.Position.X.Offset + (Input.Delta.X / Library.DPIScale), 
+                UI.Position.Y.Scale, 
+                UI.Position.Y.Offset + (Input.Delta.Y / Library.DPIScale)
             )
         end
     end))
