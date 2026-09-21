@@ -1388,52 +1388,88 @@ function Library:SafeCallback(Func: (...any) -> ...any, ...: any)
     return table.unpack(Result, 2, Result.n)
 end
 
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local DragTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
 function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggled: boolean?, IsMainWindow: boolean?)
     local Dragging = false
+    local StartMousePos
+    local StartUIPos
+    local TargetPosition = UI.Position
+    local RenderConnection
     local Changed
-    
+
+    -- Pick-up and drop animations
+    local PickUpAnim = TweenService:Create(UI, DragTweenInfo, { Rotation = 2.5 })
+    local PutDownAnim = TweenService:Create(UI, DragTweenInfo, { Rotation = 0 })
+
+    local function StopDrag()
+        if not Dragging then return end
+        Dragging = false
+        PutDownAnim:Play()
+
+        if RenderConnection then
+            RenderConnection:Disconnect()
+            RenderConnection = nil
+        end
+
+        if Changed and Changed.Connected then
+            Changed:Disconnect()
+            Changed = nil
+        end
+    end
+
     DragFrame.InputBegan:Connect(function(Input: InputObject)
-        if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
+        if not IsClickInput(Input) or (IsMainWindow and Library.CantDragForced) then
             return
         end
 
         Dragging = true
+        StartMousePos = Input.Position
+        StartUIPos = UI.Position
+        TargetPosition = StartUIPos
 
-        Changed = Input.Changed:Connect(function()
-            if Input.UserInputState ~= Enum.UserInputState.End then
+        -- Play pickup rotation effect
+        PickUpAnim:Play()
+
+        -- Smooth frame-by-frame gliding loop
+        RenderConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            if not Dragging then
+                StopDrag()
                 return
             end
 
-            Dragging = false
-            if Changed and Changed.Connected then
-                Changed:Disconnect()
-                Changed = nil
+            -- Lerp factor (higher = faster tracking, lower = smoother float)
+            local FollowSpeed = 22
+            UI.Position = UI.Position:Lerp(TargetPosition, math.clamp(deltaTime * FollowSpeed, 0, 1))
+        end)
+
+        Changed = Input.Changed:Connect(function()
+            if Input.UserInputState == Enum.UserInputState.End then
+                StopDrag()
             end
         end)
     end)
-    
+
     Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input: InputObject)
         if
             (not IgnoreToggled and not Library.Toggled)
             or (IsMainWindow and Library.CantDragForced)
             or not (ScreenGui and ScreenGui.Parent)
         then
-            Dragging = false
-            if Changed and Changed.Connected then
-                Changed:Disconnect()
-                Changed = nil
-            end
-
+            StopDrag()
             return
         end
 
-        if Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
-            -- Use Input.Delta for smooth real-time movement tracking
-            UI.Position = UDim2.new(
-                UI.Position.X.Scale, 
-                UI.Position.X.Offset + (Input.Delta.X / Library.DPIScale), 
-                UI.Position.Y.Scale, 
-                UI.Position.Y.Offset + (Input.Delta.Y / Library.DPIScale)
+        if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
+            local Delta = Input.Position - StartMousePos
+            TargetPosition = UDim2.new(
+                StartUIPos.X.Scale,
+                StartUIPos.X.Offset + (Delta.X / Library.DPIScale),
+                StartUIPos.Y.Scale,
+                StartUIPos.Y.Offset + (Delta.Y / Library.DPIScale)
             )
         end
     end))
