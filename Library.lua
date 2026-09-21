@@ -6722,7 +6722,57 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
         local DragStartPos = nil
         local IsDragging = false
         local DragThreshold = 6
-
+ 
+        -- ── Visual drag state ──────────────────────────────────────
+        local Ghost = nil        -- semi-transparent clone that follows the cursor
+        local NudgedFrame = nil  -- the groupbox currently nudged aside
+        local NudgeTween = nil
+ 
+        local function DestroyGhost()
+            if Ghost then
+                Ghost:Destroy()
+                Ghost = nil
+            end
+        end
+ 
+        local function ClearNudge()
+            if NudgedFrame then
+                if NudgeTween then NudgeTween:Cancel() end
+                -- Slide it back to its natural position
+                TweenService:Create(NudgedFrame,
+                    TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    { Position = UDim2.fromOffset(0, 0) }
+                ):Play()
+                NudgedFrame = nil
+            end
+        end
+ 
+        -- Returns the BoxHolder frame (not BoxHolder itself) that the
+        -- cursor is currently inside, scanning both sides of every tab.
+        local function GetHoveredGroupbox()
+            local function CheckSide(Side)
+                for _, Child in ipairs(Side:GetChildren()) do
+                    if Child:IsA("Frame") and Child.Name ~= "" and Child ~= BoxHolder then
+                        local AbsPos  = Child.AbsolutePosition
+                        local AbsSize = Child.AbsoluteSize
+                        if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
+                        and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+                            return Child
+                        end
+                    end
+                end
+            end
+            local hit = CheckSide(TabLeft) or CheckSide(TabRight)
+            if hit then return hit end
+            for _, Entry in Library.GroupboxDragTargets do
+                if Entry.TabName ~= TabName then
+                    hit = CheckSide(Entry.TabLeft) or CheckSide(Entry.TabRight)
+                    if hit then return hit end
+                end
+            end
+        end
+        -- ──────────────────────────────────────────────────────────
+ 
         DragHandle.InputBegan:Connect(function(Input)
             if Input.UserInputType ~= Enum.UserInputType.MouseButton1
                 and Input.UserInputType ~= Enum.UserInputType.Touch then
@@ -6731,71 +6781,149 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
             DragStartPos = Input.Position
             IsDragging = false
         end)
-
+ 
         UserInputService.InputChanged:Connect(function(Input)
             if (Input.UserInputType ~= Enum.UserInputType.MouseMovement
                 and Input.UserInputType ~= Enum.UserInputType.Touch)
                 or not DragStartPos then
                 return
             end
-
+ 
             if not IsDragging and (Input.Position - DragStartPos).Magnitude >= DragThreshold then
                 IsDragging = true
+ 
+                -- ── Create ghost clone ──────────────────────────────
+                DestroyGhost()
+                Ghost = BoxHolder:Clone()
+ 
+                -- Fade every visual element inside the ghost
+                for _, desc in ipairs(Ghost:GetDescendants()) do
+                    if desc:IsA("GuiObject") then
+                        pcall(function()
+                            desc.BackgroundTransparency =
+                                math.min(1, desc.BackgroundTransparency + 0.45)
+                        end)
+                    end
+                    if desc:IsA("TextLabel") or desc:IsA("TextButton") or desc:IsA("TextBox") then
+                        pcall(function()
+                            desc.TextTransparency = math.min(1, desc.TextTransparency + 0.45)
+                        end)
+                    end
+                    if desc:IsA("ImageLabel") or desc:IsA("ImageButton") then
+                        pcall(function()
+                            desc.ImageTransparency = math.min(1, desc.ImageTransparency + 0.45)
+                        end)
+                    end
+                    -- Disable all input on the ghost so it never interferes
+                    if desc:IsA("GuiButton") then desc.Active = false end
+                end
+ 
+                Ghost.BackgroundTransparency = 0.45
+                -- Match the on-screen pixel size (accounting for DPI scale)
+                Ghost.Size = UDim2.fromOffset(
+                    BoxHolder.AbsoluteSize.X / Library.DPIScale,
+                    BoxHolder.AbsoluteSize.Y / Library.DPIScale
+                )
+                Ghost.Position = UDim2.fromOffset(
+                    BoxHolder.AbsolutePosition.X - ScreenGui.AbsolutePosition.X,
+                    BoxHolder.AbsolutePosition.Y - ScreenGui.AbsolutePosition.Y
+                )
+                Ghost.ZIndex  = 9990
+                Ghost.Active  = false
+                Ghost.Parent  = ScreenGui
+                -- ───────────────────────────────────────────────────
+            end
+ 
+            if IsDragging then
+                -- Move ghost so the original grab-point stays under the cursor
+                if Ghost then
+                    local OffX = DragStartPos.X - BoxHolder.AbsolutePosition.X
+                    local OffY = DragStartPos.Y - BoxHolder.AbsolutePosition.Y
+                    Ghost.Position = UDim2.fromOffset(
+                        Input.Position.X - OffX,
+                        Input.Position.Y - OffY
+                    )
+                end
+ 
+                -- Nudge whichever groupbox the ghost is hovering over
+                local Hovered = GetHoveredGroupbox()
+                if Hovered ~= NudgedFrame then
+                    ClearNudge()
+                    if Hovered then
+                        -- Nudge direction: if our cursor is above the hovered box's
+                        -- centre, push it down; otherwise push it up.
+                        local HovCentreY   = Hovered.AbsolutePosition.Y + Hovered.AbsoluteSize.Y * 0.5
+                        local Dir          = (Mouse.Y < HovCentreY) and 1 or -1
+                        local NudgeAmount  = math.clamp(Hovered.AbsoluteSize.Y * 0.15, 8, 18)
+ 
+                        NudgedFrame = Hovered
+                        if NudgeTween then NudgeTween:Cancel() end
+                        NudgeTween = TweenService:Create(Hovered,
+                            TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                            { Position = UDim2.fromOffset(0, Dir * NudgeAmount) }
+                        )
+                        NudgeTween:Play()
+                    end
+                end
             end
         end)
-
+ 
         DragHandle.InputEnded:Connect(function(Input)
             if Input.UserInputType ~= Enum.UserInputType.MouseButton1
                 and Input.UserInputType ~= Enum.UserInputType.Touch then
                 return
             end
             if not DragStartPos then return end
-
+ 
+            -- Always clean up visuals first
+            ClearNudge()
+            DestroyGhost()
+ 
             if IsDragging then
                 local TabTarget = GetTabButtonDropTarget()
-
+ 
                if TabTarget and TabTarget.TabName ~= TabName then
                     --// Dropped onto a different tab's button -> move groupbox there
                     local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabTarget.TabLeft, TabTarget.TabRight)
                     local SourceSide = BoxHolder.Parent
-
+ 
                     BoxHolder.LayoutOrder = InsertOrder
                     BoxHolder.Parent = TargetSide
-
+ 
                     ReindexSide(TargetSide)
                     ReindexSide(SourceSide)
-
+ 
                     local SourceTab = Library.Tabs[TabName]
                     local DestTab = Library.Tabs[TabTarget.TabName]
                     if SourceTab and DestTab and GroupboxName then
                         DestTab.Groupboxes[GroupboxName] = SourceTab.Groupboxes[GroupboxName]
                         SourceTab.Groupboxes[GroupboxName] = nil
                     end
-
+ 
                     SaveGroupboxOrder()
                     SaveGroupboxOrder()
                 else
                     local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabLeft, TabRight)
                     local SourceSide = BoxHolder.Parent
-
+ 
                     BoxHolder.LayoutOrder = InsertOrder
                     if SourceSide ~= TargetSide then
                         BoxHolder.Parent = TargetSide
                     end
-
+ 
                     ReindexSide(TargetSide)
                     if SourceSide ~= TargetSide then
                         ReindexSide(SourceSide)
                     end
-
+ 
                     SaveGroupboxOrder()
                 end
             end
-
+ 
             IsDragging = false
             DragStartPos = nil
         end)
-
+ 
         return function() return IsDragging end
     end
     
