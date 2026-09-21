@@ -6765,16 +6765,17 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
 
     local DragProxy = nil
     local RenderConn = nil
+    local ChangedConn = nil
+    local EndedConn = nil
     local GrabOffset = Vector2.zero
 
     local function StopDrag()
         IsDragging = false
         DragStartPos = nil
 
-        if RenderConn then
-            RenderConn:Disconnect()
-            RenderConn = nil
-        end
+        if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
+        if ChangedConn then ChangedConn:Disconnect(); ChangedConn = nil end
+        if EndedConn then EndedConn:Disconnect(); EndedConn = nil end
 
         if DragProxy then
             DragProxy:Destroy()
@@ -6789,98 +6790,102 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
             and Input.UserInputType ~= Enum.UserInputType.Touch then
             return
         end
+
         DragStartPos = Input.Position
         IsDragging = false
-    end)
 
-    UserInputService.InputChanged:Connect(function(Input)
-        if (Input.UserInputType ~= Enum.UserInputType.MouseMovement
-            and Input.UserInputType ~= Enum.UserInputType.Touch)
-            or not DragStartPos then
-            return
-        end
-
-        -- Detect drag start
-        if not IsDragging and (Input.Position - DragStartPos).Magnitude >= DragThreshold then
-            IsDragging = true
-
-            -- Calculate where inside the box the user clicked so it doesn't snap to top-left
-            GrabOffset = Vector2.new(Input.Position.X - BoxHolder.AbsolutePosition.X, Input.Position.Y - BoxHolder.AbsolutePosition.Y)
-
-            -- Create floating drag clone
-            DragProxy = BoxHolder:Clone()
-            DragProxy.Name = "GroupboxDragProxy"
-            DragProxy.Size = UDim2.fromOffset(BoxHolder.AbsoluteSize.X, BoxHolder.AbsoluteSize.Y)
-            DragProxy.ZIndex = 100
-            DragProxy.Rotation = 2.5 -- Visual tilt pickup effect
-            DragProxy.Parent = ScreenGui -- Attach to main ScreenGui container
-
-            -- Hide original groupbox while dragging proxy
-            BoxHolder.Visible = false
-
-            -- Render loop to follow mouse position smoothly
-            RenderConn = RunService.RenderStepped:Connect(function()
-                if not IsDragging or not DragProxy then return end
-                
-                local MousePos = UserInputService:GetMouseLocation()
-                local Inset = GuiService:GetGuiInset()
-                
-                DragProxy.Position = UDim2.fromOffset(
-                    MousePos.X - GrabOffset.X,
-                    (MousePos.Y - Inset.Y) - GrabOffset.Y
-                )
-            end)
-        end
-    end)
-
-    DragHandle.InputEnded:Connect(function(Input)
-        if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-            and Input.UserInputType ~= Enum.UserInputType.Touch then
-            return
-        end
-        if not DragStartPos then return end
-
-        if IsDragging then
-            local TabTarget = GetTabButtonDropTarget()
-
-            if TabTarget and TabTarget.TabName ~= TabName then
-                -- Dropped onto a different tab's button -> move groupbox there
-                local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabTarget.TabLeft, TabTarget.TabRight)
-                local SourceSide = BoxHolder.Parent
-
-                BoxHolder.LayoutOrder = InsertOrder
-                BoxHolder.Parent = TargetSide
-
-                ReindexSide(TargetSide)
-                ReindexSide(SourceSide)
-
-                local SourceTab = Library.Tabs[TabName]
-                local DestTab = Library.Tabs[TabTarget.TabName]
-                if SourceTab and DestTab and GroupboxName then
-                    DestTab.Groupboxes[GroupboxName] = SourceTab.Groupboxes[GroupboxName]
-                    SourceTab.Groupboxes[GroupboxName] = nil
-                end
-
-                SaveGroupboxOrder()
-            else
-                local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabLeft, TabRight)
-                local SourceSide = BoxHolder.Parent
-
-                BoxHolder.LayoutOrder = InsertOrder
-                if SourceSide ~= TargetSide then
-                    BoxHolder.Parent = TargetSide
-                end
-
-                ReindexSide(TargetSide)
-                if SourceSide ~= TargetSide then
-                    ReindexSide(SourceSide)
-                end
-
-                SaveGroupboxOrder()
+        -- Global movement listener while holding click
+        ChangedConn = UserInputService.InputChanged:Connect(function(ChangedInput)
+            if (ChangedInput.UserInputType ~= Enum.UserInputType.MouseMovement
+                and ChangedInput.UserInputType ~= Enum.UserInputType.Touch)
+                or not DragStartPos then
+                return
             end
-        end
 
-        StopDrag()
+            -- Trigger drag pickup once mouse moves past threshold
+            if not IsDragging and (ChangedInput.Position - DragStartPos).Magnitude >= DragThreshold then
+                IsDragging = true
+
+                -- Get top-level ScreenGui safely
+                local TopScreenGui = BoxHolder:GetAncestorOfClass("ScreenGui") or BoxHolder.Parent
+                GrabOffset = Vector2.new(ChangedInput.Position.X - BoxHolder.AbsolutePosition.X, ChangedInput.Position.Y - BoxHolder.AbsolutePosition.Y)
+
+                -- Create floating pickup proxy
+                DragProxy = BoxHolder:Clone()
+                DragProxy.Name = "GroupboxDragProxy"
+                DragProxy.Size = UDim2.fromOffset(BoxHolder.AbsoluteSize.X, BoxHolder.AbsoluteSize.Y)
+                DragProxy.ZIndex = 200
+                DragProxy.Rotation = 2.5 -- Visual tilt pickup effect
+                DragProxy.Active = false -- Prevents proxy from blocking mouse raycasts/drop targets
+                DragProxy.Parent = TopScreenGui
+
+                -- Hide actual box while floating clone follows mouse
+                BoxHolder.Visible = false
+
+                -- Frame-by-frame mouse tracking
+                RenderConn = RunService.RenderStepped:Connect(function()
+                    if not IsDragging or not DragProxy then return end
+                    local MousePos = UserInputService:GetMouseLocation()
+                    local Inset = GuiService:GetGuiInset()
+
+                    DragProxy.Position = UDim2.fromOffset(
+                        MousePos.X - GrabOffset.X,
+                        (MousePos.Y - Inset.Y) - GrabOffset.Y
+                    )
+                end)
+            end
+        end)
+
+        -- Global mouse release listener (works even if mouse moves off the DragHandle)
+        EndedConn = UserInputService.InputEnded:Connect(function(EndedInput)
+            if EndedInput.UserInputType ~= Enum.UserInputType.MouseButton1
+                and EndedInput.UserInputType ~= Enum.UserInputType.Touch then
+                return
+            end
+
+            if IsDragging then
+                local TabTarget = GetTabButtonDropTarget()
+
+                if TabTarget and TabTarget.TabName ~= TabName then
+                    -- Dropped onto a different tab's button
+                    local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabTarget.TabLeft, TabTarget.TabRight)
+                    local SourceSide = BoxHolder.Parent
+
+                    BoxHolder.LayoutOrder = InsertOrder
+                    BoxHolder.Parent = TargetSide
+
+                    ReindexSide(TargetSide)
+                    ReindexSide(SourceSide)
+
+                    local SourceTab = Library.Tabs[TabName]
+                    local DestTab = Library.Tabs[TabTarget.TabName]
+                    if SourceTab and DestTab and GroupboxName then
+                        DestTab.Groupboxes[GroupboxName] = SourceTab.Groupboxes[GroupboxName]
+                        SourceTab.Groupboxes[GroupboxName] = nil
+                    end
+
+                    SaveGroupboxOrder()
+                else
+                    -- Dropped within the current tab
+                    local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabLeft, TabRight)
+                    local SourceSide = BoxHolder.Parent
+
+                    BoxHolder.LayoutOrder = InsertOrder
+                    if SourceSide ~= TargetSide then
+                        BoxHolder.Parent = TargetSide
+                    end
+
+                    ReindexSide(TargetSide)
+                    if SourceSide ~= TargetSide then
+                        ReindexSide(SourceSide)
+                    end
+
+                    SaveGroupboxOrder()
+                end
+            end
+
+            StopDrag()
+        end)
     end)
 
     return function() return IsDragging end
