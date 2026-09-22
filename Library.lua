@@ -6797,18 +6797,17 @@ local TabOrderCounter = 0
         local DraggingTab = nil
         local DraggingButton = nil
 
-        local function SetupTabDrag(Button)
+local function SetupTabDrag(Button)
     TabOrderCounter = TabOrderCounter + 1
     Button.LayoutOrder = TabOrderCounter
     Button.Name = "TabButton_" .. TabOrderCounter
+    print("[TabDrag] Registered button:", Button.Name, "LayoutOrder:", Button.LayoutOrder)
 
     local DragStartY = nil
     local IsDragging = false
     local DragThreshold = 6
 
-    -- Ghost clone that follows mouse
     local GhostClone = nil
-    -- Line indicator showing drop position
     local DropLine = nil
 
     local function CleanupDrag()
@@ -6821,6 +6820,7 @@ local TabOrderCounter = 0
             DropLine = nil
         end
         Button.BackgroundTransparency = 1
+        print("[TabDrag] Cleanup done for:", Button.Name)
     end
 
     local function CreateGhost()
@@ -6840,7 +6840,6 @@ local TabOrderCounter = 0
             Thickness = 1,
             Parent = GhostClone,
         })
-        -- Copy the label text into ghost
         New("TextLabel", {
             BackgroundTransparency = 1,
             Position = UDim2.fromOffset(30, 0),
@@ -6852,8 +6851,8 @@ local TabOrderCounter = 0
             ZIndex = 1000,
             Parent = GhostClone,
         })
-        -- Slightly transparent
         GhostClone.BackgroundTransparency = 0.3
+        print("[TabDrag] Ghost created for:", Button.Name)
     end
 
     local function CreateDropLine(yPos)
@@ -6876,6 +6875,7 @@ local TabOrderCounter = 0
         end
         DragStartY = Input.Position.Y
         IsDragging = false
+        print("[TabDrag] InputBegan on:", Button.Name, "at Y:", DragStartY)
     end)
 
     UserInputService.InputChanged:Connect(function(Input)
@@ -6891,15 +6891,14 @@ local TabOrderCounter = 0
             end
             IsDragging = true
             DraggingButton = Button
-            -- Make original semi transparent
             Button.BackgroundTransparency = 0.7
             CreateGhost()
+            print("[TabDrag] Drag started for:", Button.Name, "initial LayoutOrder:", Button.LayoutOrder)
         end
 
         if not IsDragging then return end
 
         local MouseY = Input.Position.Y
-        local MouseX = Input.Position.X
 
         -- Move ghost with mouse
         if GhostClone then
@@ -6909,56 +6908,65 @@ local TabOrderCounter = 0
             )
         end
 
-        -- Find drop position and show line
-        local ClosestButton = nil
-        local ClosestY = nil
-        local InsertBefore = true
-
+        -- Collect and sort all other buttons by current layout order
+        local OtherButtons = {}
         for _, OtherButton in Tabs:GetChildren() do
-            if not OtherButton:IsA("TextButton") or OtherButton == Button then
-                continue
+            if OtherButton:IsA("TextButton") and OtherButton ~= Button then
+                table.insert(OtherButtons, OtherButton)
             end
-            local AbsY = OtherButton.AbsolutePosition.Y
-            local AbsH = OtherButton.AbsoluteSize.Y
-            local MidY = AbsY + AbsH / 2
+        end
+        table.sort(OtherButtons, function(a, b)
+            return a.LayoutOrder < b.LayoutOrder
+        end)
 
-            if MouseY < MidY then
-                if not ClosestY or AbsY < ClosestY then
-                    ClosestButton = OtherButton
-                    ClosestY = AbsY
-                    InsertBefore = true
+        if #OtherButtons == 0 then return end
+
+        -- Debug: print current sorted order
+        local orderStr = ""
+        for _, b in ipairs(OtherButtons) do
+            orderStr = orderStr .. b.Name .. "(" .. b.LayoutOrder .. ") "
+        end
+        print("[TabDrag] MouseY:", MouseY, "| Other buttons sorted:", orderStr)
+        print("[TabDrag] Dragging:", Button.Name, "current order:", Button.LayoutOrder)
+
+        local TargetOrder = nil
+
+        -- Above all buttons
+        if MouseY < OtherButtons[1].AbsolutePosition.Y + OtherButtons[1].AbsoluteSize.Y / 2 then
+            TargetOrder = OtherButtons[1].LayoutOrder - 1
+            print("[TabDrag] Position: ABOVE ALL, TargetOrder:", TargetOrder)
+            CreateDropLine(OtherButtons[1].AbsolutePosition.Y)
+
+        -- Below all buttons
+        elseif MouseY > OtherButtons[#OtherButtons].AbsolutePosition.Y + OtherButtons[#OtherButtons].AbsoluteSize.Y / 2 then
+            TargetOrder = OtherButtons[#OtherButtons].LayoutOrder + 1
+            print("[TabDrag] Position: BELOW ALL, TargetOrder:", TargetOrder)
+            CreateDropLine(OtherButtons[#OtherButtons].AbsolutePosition.Y + OtherButtons[#OtherButtons].AbsoluteSize.Y)
+
+        -- Between buttons
+        else
+            for i = 1, #OtherButtons - 1 do
+                local thisBtn = OtherButtons[i]
+                local nextBtn = OtherButtons[i + 1]
+                local thisMid = thisBtn.AbsolutePosition.Y + thisBtn.AbsoluteSize.Y / 2
+                local nextMid = nextBtn.AbsolutePosition.Y + nextBtn.AbsoluteSize.Y / 2
+
+                if MouseY >= thisMid and MouseY < nextMid then
+                    TargetOrder = thisBtn.LayoutOrder + 0.5
+                    print("[TabDrag] Position: BETWEEN", thisBtn.Name, "and", nextBtn.Name, "TargetOrder:", TargetOrder)
+                    CreateDropLine(nextBtn.AbsolutePosition.Y)
+                    break
                 end
-            else
-                if not ClosestY or AbsY + AbsH > ClosestY then
-                    ClosestButton = OtherButton
-                    ClosestY = AbsY + AbsH
-                    InsertBefore = false
-                end
             end
         end
 
-        -- Show drop line
-        if ClosestButton then
-            local lineY = InsertBefore 
-                and ClosestButton.AbsolutePosition.Y 
-                or (ClosestButton.AbsolutePosition.Y + ClosestButton.AbsoluteSize.Y)
-            CreateDropLine(lineY)
+        if TargetOrder == nil then
+            print("[TabDrag] WARNING: TargetOrder is nil, MouseY:", MouseY)
+            return
         end
 
-        -- Swap order live
-        for _, OtherButton in Tabs:GetChildren() do
-            if not OtherButton:IsA("TextButton") or OtherButton == Button then
-                continue
-            end
-            local AbsY = OtherButton.AbsolutePosition.Y
-            local AbsH = OtherButton.AbsoluteSize.Y
-            if MouseY >= AbsY and MouseY <= AbsY + AbsH then
-                local MyOrder = Button.LayoutOrder
-                Button.LayoutOrder = OtherButton.LayoutOrder
-                OtherButton.LayoutOrder = MyOrder
-                break
-            end
-        end
+        Button.LayoutOrder = TargetOrder
+        print("[TabDrag] Set", Button.Name, "LayoutOrder to:", TargetOrder)
     end)
 
     Button.InputEnded:Connect(function(Input)
@@ -6970,8 +6978,27 @@ local TabOrderCounter = 0
             IsDragging = false
             DraggingButton = nil
             DragStartY = nil
+
+            print("[TabDrag] Drag ended for:", Button.Name, "final LayoutOrder:", Button.LayoutOrder)
+
+            -- Reindex all buttons cleanly only on release
+            local AllButtons = {}
+            for _, btn in Tabs:GetChildren() do
+                if btn:IsA("TextButton") then
+                    table.insert(AllButtons, btn)
+                end
+            end
+            table.sort(AllButtons, function(a, b)
+                return a.LayoutOrder < b.LayoutOrder
+            end)
+            for i, btn in ipairs(AllButtons) do
+                btn.LayoutOrder = i
+                print("[TabDrag] Reindexed:", btn.Name, "-> LayoutOrder:", i)
+            end
+
             CleanupDrag()
             SaveTabOrder()
+            print("[TabDrag] Tab order saved")
             return
         end
         DragStartY = nil
