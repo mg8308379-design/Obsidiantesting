@@ -6977,11 +6977,11 @@ end
         -- Don't tear off key tabs
         if Tab.IsKeyTab then return end
 
-        -- Hide the active tab's container from main window
-        if Library.ActiveTab == Tab then
-            Library.ActiveTab = nil
-        end
-        Tab:Hide()
+-- Only hide the tab if it was actually the active tab
+if Library.ActiveTab == Tab then
+    Library.ActiveTab = nil
+    Tab:Hide()
+end
 
         -- Remove button from sidebar entirely
         Button.Visible = false
