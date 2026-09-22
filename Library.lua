@@ -7280,7 +7280,7 @@ local function SetupTabDrag(Button)
 
     local GhostClone = nil
     local DropLine = nil
-    local TearOffHint = nil  -- accent overlay on main window when hovering outside
+    local TearOffLabel = nil  -- small floating label near cursor when outside
 
     local function CleanupDrag()
         if GhostClone then
@@ -7291,9 +7291,9 @@ local function SetupTabDrag(Button)
             DropLine:Destroy()
             DropLine = nil
         end
-        if TearOffHint then
-            TearOffHint:Destroy()
-            TearOffHint = nil
+        if TearOffLabel then
+            TearOffLabel:Destroy()
+            TearOffLabel = nil
         end
         Button.BackgroundTransparency = 1
     end
@@ -7342,52 +7342,48 @@ local function SetupTabDrag(Button)
         })
     end
 
-    -- Tear-off hint: a full-window accent overlay shown when dragging outside MainFrame
-    local function ShowTearOffHint(show)
+    -- Small pill label that follows cursor outside the window
+    local function ShowTearOffLabel(show, mouseX, mouseY)
         if show then
-            if TearOffHint then return end
-            TearOffHint = New("Frame", {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                BackgroundColor3 = Library.Scheme.AccentColor,
-                BackgroundTransparency = 0.82,
-                Position = UDim2.fromScale(0.5, 0.5),
-                Size = UDim2.fromScale(1, 1),
-                ZIndex = 900,
-                Parent = ScreenGui,
-            })
-            New("UICorner", {
-                CornerRadius = UDim.new(0, Library.CornerRadius),
-                Parent = TearOffHint,
-            })
-            -- Dashed border effect via stroke
-            New("UIStroke", {
-                Color = Library.Scheme.AccentColor,
-                Thickness = 2,
-                Parent = TearOffHint,
-            })
             local TabLabel = Button:FindFirstChildWhichIsA("TextLabel")
             local TabName = TabLabel and TabLabel.Text or "Tab"
-            New("TextLabel", {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                BackgroundTransparency = 1,
-                Position = UDim2.fromScale(0.5, 0.5),
-                Size = UDim2.fromScale(0.8, 0.2),
-                Text = "🪟  Release to pop out \"" .. TabName .. "\" into its own window",
-                TextColor3 = Library.Scheme.FontColor,
-                TextSize = 16,
-                TextWrapped = true,
-                ZIndex = 901,
-                Parent = TearOffHint,
-            })
+            if not TearOffLabel then
+                TearOffLabel = New("Frame", {
+                    BackgroundColor3 = Library.Scheme.MainColor,
+                    Size = UDim2.fromOffset(180, 26),
+                    ZIndex = 1001,
+                    Parent = ScreenGui,
+                })
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, Library.CornerRadius),
+                    Parent = TearOffLabel,
+                })
+                New("UIStroke", {
+                    Color = Library.Scheme.AccentColor,
+                    Thickness = 1,
+                    Parent = TearOffLabel,
+                })
+                New("TextLabel", {
+                    BackgroundTransparency = 1,
+                    Size = UDim2.fromScale(1, 1),
+                    Text = "🪟 Pop out \"" .. TabName .. "\"",
+                    TextColor3 = Library.Scheme.FontColor,
+                    TextSize = 13,
+                    ZIndex = 1002,
+                    Parent = TearOffLabel,
+                })
+            end
+            -- Follow cursor, offset so it doesn't cover the ghost
+            TearOffLabel.Position = UDim2.fromOffset(mouseX + 14, mouseY - 13)
         else
-            if TearOffHint then
-                TearOffHint:Destroy()
-                TearOffHint = nil
+            if TearOffLabel then
+                TearOffLabel:Destroy()
+                TearOffLabel = nil
             end
         end
     end
 
-    -- Find the TabContainer frame in Container for a given Tab table
+    -- Walk Container's children to find which Frame contains this tab's sides
     local function FindTabContainer(tab)
         if not tab or not tab.Sides then return nil end
         for _, child in ipairs(Container:GetChildren()) do
@@ -7402,7 +7398,7 @@ local function SetupTabDrag(Button)
         return nil
     end
 
-    -- Resolve which Library.Tabs entry owns this Button via its label text
+    -- Match this button to its Library.Tabs entry by TextLabel text
     local function FindTabForButton()
         local lbl = Button:FindFirstChildWhichIsA("TextLabel")
         if not lbl then return nil, nil end
@@ -7446,7 +7442,7 @@ local function SetupTabDrag(Button)
         local MouseX = Input.Position.X
         local MouseY = Input.Position.Y
 
-        -- Move ghost with mouse
+        -- Move ghost with cursor
         if GhostClone then
             GhostClone.Position = UDim2.fromOffset(
                 Button.AbsolutePosition.X,
@@ -7455,22 +7451,21 @@ local function SetupTabDrag(Button)
         end
 
         local mouseVec = Vector2.new(MouseX, MouseY)
-        local isOutsideMainFrame = not Library:MouseIsOverFrame(MainFrame, mouseVec)
+        local isOutside = not Library:MouseIsOverFrame(MainFrame, mouseVec)
 
-        if isOutsideMainFrame then
-            -- Outside the window: hide drop line, show tear-off hint
+        if isOutside then
+            -- Hide drop line, show small tear-off label near cursor
             if DropLine then
                 DropLine:Destroy()
                 DropLine = nil
             end
-            ShowTearOffHint(true)
+            ShowTearOffLabel(true, MouseX, MouseY)
             return
         end
 
-        -- Back inside: hide tear-off hint, show normal drop line
-        ShowTearOffHint(false)
+        -- Inside: hide tear-off label, show normal drop indicator
+        ShowTearOffLabel(false)
 
-        -- Collect and sort all other buttons by current layout order
         local OtherButtons = {}
         for _, OtherButton in Tabs:GetChildren() do
             if OtherButton:IsA("TextButton") and OtherButton ~= Button then
@@ -7521,15 +7516,17 @@ local function SetupTabDrag(Button)
         if IsDragging then
             IsDragging = false
             DraggingButton = nil
-            DragStartY = nil
 
             local mouseVec = Vector2.new(Mouse.X, Mouse.Y)
             local isOutside = not Library:MouseIsOverFrame(MainFrame, mouseVec)
 
-            CleanupDrag()  -- destroys ghost, drop line, and tear-off hint
+            -- Capture final drag position before we reset
+            local finalDragY = DragStartY
+            DragStartY = nil
+
+            CleanupDrag()
 
             if isOutside then
-                -- Tear off: find the tab and its container
                 local tabName, tab = FindTabForButton()
 
                 if tabName and tab and not tab.IsKeyTab and not TornOffTabs[tabName] then
@@ -7539,7 +7536,7 @@ local function SetupTabDrag(Button)
                     end
                 end
             else
-                -- Normal drop inside: reindex
+                -- Normal reorder inside window
                 local AllButtons = {}
                 for _, btn in Tabs:GetChildren() do
                     if btn:IsA("TextButton") then
