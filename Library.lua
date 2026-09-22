@@ -1,9 +1,3 @@
---------------------------------under development--------------------------------------
-
-
-
-
-
 local cloneref = (cloneref or clonereference or function(instance: any)
     return instance
 end)
@@ -1388,92 +1382,55 @@ function Library:SafeCallback(Func: (...any) -> ...any, ...: any)
     return table.unpack(Result, 2, Result.n)
 end
 
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-
-local DragTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-
 function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggled: boolean?, IsMainWindow: boolean?)
+    local StartPos
+    local FramePos
     local Dragging = false
-    local StartMousePos
-    local StartUIPos
-    local TargetPosition = UI.Position
-    local RenderConnection
     local Changed
-
-    -- Pick-up and drop animations
-    local PickUpAnim = TweenService:Create(UI, DragTweenInfo, { Rotation = 2.5 })
-    local PutDownAnim = TweenService:Create(UI, DragTweenInfo, { Rotation = 0 })
-
-    local function StopDrag()
-        if not Dragging then return end
-        Dragging = false
-        PutDownAnim:Play()
-
-        if RenderConnection then
-            RenderConnection:Disconnect()
-            RenderConnection = nil
-        end
-
-        if Changed and Changed.Connected then
-            Changed:Disconnect()
-            Changed = nil
-        end
-    end
-
     DragFrame.InputBegan:Connect(function(Input: InputObject)
-        if not IsClickInput(Input) or (IsMainWindow and Library.CantDragForced) then
+        if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
             return
         end
 
+        StartPos = Input.Position
+        FramePos = UI.Position
         Dragging = true
-        StartMousePos = Input.Position
-        StartUIPos = UI.Position
-        TargetPosition = StartUIPos
 
-        -- Play pickup rotation effect
-        PickUpAnim:Play()
-
-        -- Smooth frame-by-frame gliding loop
-        RenderConnection = RunService.RenderStepped:Connect(function(deltaTime)
-            if not Dragging then
-                StopDrag()
+        Changed = Input.Changed:Connect(function()
+            if Input.UserInputState ~= Enum.UserInputState.End then
                 return
             end
 
-            -- Lerp factor (higher = faster tracking, lower = smoother float)
-            local FollowSpeed = 22
-            UI.Position = UI.Position:Lerp(TargetPosition, math.clamp(deltaTime * FollowSpeed, 0, 1))
-        end)
-
-        Changed = Input.Changed:Connect(function()
-            if Input.UserInputState == Enum.UserInputState.End then
-                StopDrag()
+            Dragging = false
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
             end
         end)
     end)
-
     Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input: InputObject)
         if
             (not IgnoreToggled and not Library.Toggled)
             or (IsMainWindow and Library.CantDragForced)
             or not (ScreenGui and ScreenGui.Parent)
         then
-            StopDrag()
+            Dragging = false
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
+            end
+
             return
         end
 
-        if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
-            local Delta = Input.Position - StartMousePos
-            TargetPosition = UDim2.new(
-                StartUIPos.X.Scale,
-                StartUIPos.X.Offset + (Delta.X / Library.DPIScale),
-                StartUIPos.Y.Scale,
-                StartUIPos.Y.Offset + (Delta.Y / Library.DPIScale)
-            )
+        if Dragging and IsHoverInput(Input) then
+            local Delta = Input.Position - StartPos
+            UI.Position =
+                UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
         end
     end))
 end
+
 function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: () -> ()?)
     local StartPos
     local FrameSize
@@ -6755,99 +6712,44 @@ local function ReindexSide(Side)
         return nil
     end
 
-local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
-
 local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRight, GroupboxName)
-    local DragStartPos = nil
-    local IsDragging = false
-    local DragThreshold = 6
+        local DragStartPos = nil
+        local IsDragging = false
+        local DragThreshold = 6
 
-    local DragProxy = nil
-    local RenderConn = nil
-    local ChangedConn = nil
-    local EndedConn = nil
-    local GrabOffset = Vector2.zero
+        DragHandle.InputBegan:Connect(function(Input)
+            if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+                and Input.UserInputType ~= Enum.UserInputType.Touch then
+                return
+            end
+            DragStartPos = Input.Position
+            IsDragging = false
+        end)
 
-    local function StopDrag()
-        IsDragging = false
-        DragStartPos = nil
-
-        if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
-        if ChangedConn then ChangedConn:Disconnect(); ChangedConn = nil end
-        if EndedConn then EndedConn:Disconnect(); EndedConn = nil end
-
-        if DragProxy then
-            DragProxy:Destroy()
-            DragProxy = nil
-        end
-
-        BoxHolder.Visible = true
-    end
-
-    DragHandle.InputBegan:Connect(function(Input)
-        if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-            and Input.UserInputType ~= Enum.UserInputType.Touch then
-            return
-        end
-
-        DragStartPos = Input.Position
-        IsDragging = false
-
-        -- Global movement listener while holding click
-        ChangedConn = UserInputService.InputChanged:Connect(function(ChangedInput)
-            if (ChangedInput.UserInputType ~= Enum.UserInputType.MouseMovement
-                and ChangedInput.UserInputType ~= Enum.UserInputType.Touch)
+        UserInputService.InputChanged:Connect(function(Input)
+            if (Input.UserInputType ~= Enum.UserInputType.MouseMovement
+                and Input.UserInputType ~= Enum.UserInputType.Touch)
                 or not DragStartPos then
                 return
             end
 
-            -- Trigger drag pickup once mouse moves past threshold
-            if not IsDragging and (ChangedInput.Position - DragStartPos).Magnitude >= DragThreshold then
+            if not IsDragging and (Input.Position - DragStartPos).Magnitude >= DragThreshold then
                 IsDragging = true
-
-                -- Get top-level ScreenGui safely
-                local TopScreenGui = BoxHolder:GetAncestorOfClass("ScreenGui") or BoxHolder.Parent
-                GrabOffset = Vector2.new(ChangedInput.Position.X - BoxHolder.AbsolutePosition.X, ChangedInput.Position.Y - BoxHolder.AbsolutePosition.Y)
-
-                -- Create floating pickup proxy
-                DragProxy = BoxHolder:Clone()
-                DragProxy.Name = "GroupboxDragProxy"
-                DragProxy.Size = UDim2.fromOffset(BoxHolder.AbsoluteSize.X, BoxHolder.AbsoluteSize.Y)
-                DragProxy.ZIndex = 200
-                DragProxy.Rotation = 2.5 -- Visual tilt pickup effect
-                DragProxy.Active = false -- Prevents proxy from blocking mouse raycasts/drop targets
-                DragProxy.Parent = TopScreenGui
-
-                -- Hide actual box while floating clone follows mouse
-                BoxHolder.Visible = false
-
-                -- Frame-by-frame mouse tracking
-                RenderConn = RunService.RenderStepped:Connect(function()
-                    if not IsDragging or not DragProxy then return end
-                    local MousePos = UserInputService:GetMouseLocation()
-                    local Inset = GuiService:GetGuiInset()
-
-                    DragProxy.Position = UDim2.fromOffset(
-                        MousePos.X - GrabOffset.X,
-                        (MousePos.Y - Inset.Y) - GrabOffset.Y
-                    )
-                end)
             end
         end)
 
-        -- Global mouse release listener (works even if mouse moves off the DragHandle)
-        EndedConn = UserInputService.InputEnded:Connect(function(EndedInput)
-            if EndedInput.UserInputType ~= Enum.UserInputType.MouseButton1
-                and EndedInput.UserInputType ~= Enum.UserInputType.Touch then
+        DragHandle.InputEnded:Connect(function(Input)
+            if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+                and Input.UserInputType ~= Enum.UserInputType.Touch then
                 return
             end
+            if not DragStartPos then return end
 
             if IsDragging then
                 local TabTarget = GetTabButtonDropTarget()
 
-                if TabTarget and TabTarget.TabName ~= TabName then
-                    -- Dropped onto a different tab's button
+               if TabTarget and TabTarget.TabName ~= TabName then
+                    --// Dropped onto a different tab's button -> move groupbox there
                     local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabTarget.TabLeft, TabTarget.TabRight)
                     local SourceSide = BoxHolder.Parent
 
@@ -6865,8 +6767,8 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
                     end
 
                     SaveGroupboxOrder()
+                    SaveGroupboxOrder()
                 else
-                    -- Dropped within the current tab
                     local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabLeft, TabRight)
                     local SourceSide = BoxHolder.Parent
 
@@ -6884,12 +6786,12 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
                 end
             end
 
-            StopDrag()
+            IsDragging = false
+            DragStartPos = nil
         end)
-    end)
 
-    return function() return IsDragging end
-end
+        return function() return IsDragging end
+    end
 
 local TabOrderCounter = 0
         local DraggingTab = nil
@@ -7266,7 +7168,7 @@ local SavedGroupboxOrder = LoadGroupboxOrder()
             Parent = BottomBar,
         })
 
-local LocalVersion = "1.0.6"
+local LocalVersion = "1.2.5"
 
 
         -- Status Circle
@@ -7326,7 +7228,7 @@ end)
 task.spawn(function()
     while not Library.Unloaded do
         local success, result = pcall(function()
-            return game:HttpGet("https://raw.githubusercontent.com/PollutedHub/Obsidianmodified/main/version.txt")
+            return game:HttpGet("https://raw.githubusercontent.com/mg8308379-design/Obsidiantesting/refs/heads/main/Version.txt")
         end)
 
         if success and result then
