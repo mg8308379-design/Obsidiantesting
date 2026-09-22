@@ -6941,6 +6941,330 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
     return function() return IsDragging end
 end
 
+    -- Tear-off tab system
+    local TornOffTabs = {}
+
+    local function DockTab(TabName)
+        local torn = TornOffTabs[TabName]
+        if not torn then return end
+
+        -- Move the TabContainer back into the main Container
+        torn.TabContainer.Parent = Container
+        torn.TabContainer.Size = UDim2.fromScale(1, 1)
+        torn.TabContainer.Position = UDim2.fromScale(0, 0)
+
+        -- Restore the tab button in the sidebar
+        torn.Button.Visible = true
+        torn.Button.BackgroundTransparency = 1
+
+        -- If this tab was active before tear-off, show it again
+        -- Otherwise just leave the current active tab
+        if Library.ActiveTab == nil then
+            torn.Tab:Show()
+        end
+
+        -- Destroy the floating window
+        if torn.FloatGui and torn.FloatGui.Parent then
+            torn.FloatGui:Destroy()
+        end
+
+        TornOffTabs[TabName] = nil
+    end
+
+    local function TearOffTab(Button, Tab, TabName, TabContainer)
+        -- Don't tear off if already torn
+        if TornOffTabs[TabName] then return end
+        -- Don't tear off key tabs
+        if Tab.IsKeyTab then return end
+
+        -- Hide the active tab's container from main window
+        if Library.ActiveTab == Tab then
+            Library.ActiveTab = nil
+        end
+        Tab:Hide()
+
+        -- Remove button from sidebar entirely
+        Button.Visible = false
+
+        -- Create the floating ScreenGui
+        local FloatGui = Instance.new("ScreenGui")
+        FloatGui.Name = "ObsidianTearOff_" .. TabName
+        FloatGui.DisplayOrder = 997
+        FloatGui.ResetOnSpawn = false
+        pcall(protectgui, FloatGui)
+        pcall(function()
+            FloatGui.Parent = gethui()
+        end)
+        if not FloatGui.Parent then
+            FloatGui.Parent = LocalPlayer:WaitForChild("PlayerGui", math.huge)
+        end
+
+        -- Floating window frame — same styling as MainFrame
+        local mousePos = UserInputService:GetMouseLocation()
+        local FloatFrame = New("TextButton", {
+            BackgroundColor3 = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
+            end,
+            Name = "TearOffMain_" .. TabName,
+            Text = "",
+            AutoButtonColor = false,
+            Position = UDim2.fromOffset(
+                math.clamp(mousePos.X - 290, 6, workspace.CurrentCamera.ViewportSize.X - 586),
+                math.clamp(mousePos.Y - 24, 6, workspace.CurrentCamera.ViewportSize.Y - 406)
+            ),
+            Size = UDim2.fromOffset(580, 400),
+            ClipsDescendants = false,
+            Parent = FloatGui,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius),
+            Parent = FloatFrame,
+        }))
+        table.insert(Library.Scales, New("UIScale", {
+            Parent = FloatFrame,
+        }))
+        Library:AddOutline(FloatFrame)
+
+        -- Dividing line under title bar
+        Library:MakeLine(FloatFrame, {
+            Position = UDim2.fromOffset(0, 48),
+            Size = UDim2.new(1, 0, 0, 1),
+        })
+
+        -- Title bar
+        local FloatTopBar = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 48),
+            Parent = FloatFrame,
+        })
+
+        -- Tab name label
+        local FloatTitleLabel = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(12, 0),
+            Size = UDim2.new(1, -120, 1, 0),
+            Text = TabName,
+            TextSize = 18,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = FloatFrame.ZIndex,
+            Parent = FloatTopBar,
+        })
+
+        -- "Dock" button in title bar
+        local DockBtn = New("TextButton", {
+            AnchorPoint = Vector2.new(1, 0.5),
+            BackgroundColor3 = "MainColor",
+            Position = UDim2.new(1, -46, 0.5, 0),
+            Size = UDim2.fromOffset(60, 24),
+            Text = "⇤ Dock",
+            TextSize = 13,
+            ZIndex = FloatFrame.ZIndex + 1,
+            Parent = FloatTopBar,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+            Parent = DockBtn,
+        }))
+        Library:AddOutline(DockBtn)
+
+        -- Close button
+        local FloatCloseBtn = New("TextButton", {
+            AnchorPoint = Vector2.new(1, 0.5),
+            BackgroundColor3 = "MainColor",
+            Position = UDim2.new(1, -8, 0.5, 0),
+            Size = UDim2.fromOffset(30, 24),
+            Text = "✕",
+            TextColor3 = Library.Scheme.RedColor,
+            TextSize = 14,
+            ZIndex = FloatFrame.ZIndex + 1,
+            Parent = FloatTopBar,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+            Parent = FloatCloseBtn,
+        }))
+        Library:AddOutline(FloatCloseBtn)
+
+        -- Bottom bar (footer + resize)
+        local FloatBottomBg = New("Frame", {
+            AnchorPoint = Vector2.new(0, 1),
+            BackgroundColor3 = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
+            end,
+            Position = UDim2.fromScale(0, 1),
+            Size = UDim2.new(1, 0, 0, 20 + Library.CornerRadius),
+            Parent = FloatFrame,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius),
+            Parent = FloatBottomBg,
+        }))
+        Library:MakeLine(FloatFrame, {
+            AnchorPoint = Vector2.new(0, 1),
+            Position = UDim2.new(0, 0, 1, -20),
+            Size = UDim2.new(1, 0, 0, 1),
+        })
+
+        local FloatBottomBar = New("Frame", {
+            AnchorPoint = Vector2.new(0, 1),
+            BackgroundTransparency = 1,
+            Position = UDim2.fromScale(0, 1),
+            Size = UDim2.new(1, 0, 0, 20),
+            Parent = FloatFrame,
+        })
+
+        -- Floating window footer label
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            Text = TabName .. " — Torn Off",
+            TextSize = 13,
+            TextTransparency = 0.5,
+            Parent = FloatBottomBar,
+        })
+
+        -- Resize handle
+        local FloatResizeBtn = New("TextButton", {
+            AnchorPoint = Vector2.new(1, 0),
+            BackgroundTransparency = 1,
+            Position = UDim2.new(1, -Library.CornerRadius / 4, 0, 0),
+            Size = UDim2.fromScale(1, 1),
+            SizeConstraint = Enum.SizeConstraint.RelativeYY,
+            Text = "",
+            Parent = FloatBottomBar,
+        })
+        if ResizeIcon then
+            New("ImageLabel", {
+                Image = ResizeIcon.Url,
+                ImageColor3 = "FontColor",
+                ImageRectOffset = ResizeIcon.ImageRectOffset,
+                ImageRectSize = ResizeIcon.ImageRectSize,
+                ImageTransparency = 0.5,
+                Position = UDim2.fromOffset(2, 2),
+                Size = UDim2.new(1, -4, 1, -4),
+                Parent = FloatResizeBtn,
+            })
+        end
+        Library:MakeResizable(FloatFrame, FloatResizeBtn)
+
+        -- Move the tab's container into this float window
+        TabContainer.Parent = FloatFrame
+        TabContainer.Visible = true
+        TabContainer.Position = UDim2.fromOffset(0, 49)
+        TabContainer.Size = UDim2.new(1, 0, 1, -70)
+
+        -- Make it draggable (title bar drag)
+        Library:MakeDraggable(FloatFrame, FloatTopBar, true)
+
+        -- Track this torn-off tab
+        TornOffTabs[TabName] = {
+            Button = Button,
+            Tab = Tab,
+            TabContainer = TabContainer,
+            FloatGui = FloatGui,
+            FloatFrame = FloatFrame,
+        }
+
+        -- Dock button click
+        DockBtn.MouseButton1Click:Connect(function()
+            DockTab(TabName)
+            -- Show the tab in main window
+            if Library.Tabs[TabName] then
+                Library.Tabs[TabName]:Show()
+            end
+        end)
+
+        -- Close button destroys the float and docks
+        FloatCloseBtn.MouseButton1Click:Connect(function()
+            DockTab(TabName)
+        end)
+
+        -- Re-dock on title bar drag: on InputEnded check if over MainFrame
+        local IsTitleDragging = false
+        FloatTopBar.InputBegan:Connect(function(Input)
+            if IsMouseInput(Input) then
+                IsTitleDragging = true
+            end
+        end)
+
+        Library:GiveSignal(UserInputService.InputEnded:Connect(function(Input)
+            if Library.Unloaded then return end
+            if not IsTitleDragging then return end
+            if not IsMouseInput(Input) then return end
+
+            IsTitleDragging = false
+
+            -- Check if mouse is over the main window
+            local mPos = Vector2.new(Mouse.X, Mouse.Y)
+            if TornOffTabs[TabName] and Library:MouseIsOverFrame(MainFrame, mPos) then
+                DockTab(TabName)
+                if Library.Tabs[TabName] then
+                    Library.Tabs[TabName]:Show()
+                end
+            end
+        end))
+
+        -- Show drop hint on main window when dragging float title bar over it
+        local DropHint = New("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Library.Scheme.AccentColor,
+            BackgroundTransparency = 0.75,
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromScale(1, 1),
+            Visible = false,
+            ZIndex = 900,
+            Parent = MainFrame,
+        })
+        table.insert(Library.Corners, New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius),
+            Parent = DropHint,
+        }))
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            Text = "Drop to dock \"" .. TabName .. "\"",
+            TextColor3 = Library.Scheme.FontColor,
+            TextSize = 16,
+            ZIndex = 901,
+            Parent = DropHint,
+        })
+
+        Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input)
+            if Library.Unloaded then return end
+            if not TornOffTabs[TabName] then
+                DropHint.Visible = false
+                return
+            end
+            if not IsTitleDragging then
+                DropHint.Visible = false
+                return
+            end
+            local mPos = Vector2.new(Mouse.X, Mouse.Y)
+            DropHint.Visible = Library:MouseIsOverFrame(MainFrame, mPos)
+        end))
+
+        -- Ensure hint is cleaned up when docked
+        local origDock = DockTab
+        -- (DropHint is parented to MainFrame so it goes away when FloatGui is destroyed,
+        --  but we also hide it explicitly on dock)
+        Library:GiveSignal(FloatGui.DescendantRemoving:Connect(function()
+            if DropHint and DropHint.Parent then
+                DropHint:Destroy()
+            end
+        end))
+
+        Library:AddToRegistry(FloatFrame, {
+            BackgroundColor3 = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
+            end,
+        })
+        Library:AddToRegistry(FloatBottomBg, {
+            BackgroundColor3 = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
+            end,
+        })
+    end
+
 local TabOrderCounter = 0
         local DraggingTab = nil
         local DraggingButton = nil
@@ -6949,7 +7273,6 @@ local function SetupTabDrag(Button)
     TabOrderCounter = TabOrderCounter + 1
     Button.LayoutOrder = TabOrderCounter
     Button.Name = "TabButton_" .. TabOrderCounter
-    print("[TabDrag] Registered button:", Button.Name, "LayoutOrder:", Button.LayoutOrder)
 
     local DragStartY = nil
     local IsDragging = false
@@ -6957,6 +7280,7 @@ local function SetupTabDrag(Button)
 
     local GhostClone = nil
     local DropLine = nil
+    local TearOffHint = nil  -- accent overlay on main window when hovering outside
 
     local function CleanupDrag()
         if GhostClone then
@@ -6967,8 +7291,11 @@ local function SetupTabDrag(Button)
             DropLine:Destroy()
             DropLine = nil
         end
+        if TearOffHint then
+            TearOffHint:Destroy()
+            TearOffHint = nil
+        end
         Button.BackgroundTransparency = 1
-        print("[TabDrag] Cleanup done for:", Button.Name)
     end
 
     local function CreateGhost()
@@ -7000,7 +7327,6 @@ local function SetupTabDrag(Button)
             Parent = GhostClone,
         })
         GhostClone.BackgroundTransparency = 0.3
-        print("[TabDrag] Ghost created for:", Button.Name)
     end
 
     local function CreateDropLine(yPos)
@@ -7016,6 +7342,79 @@ local function SetupTabDrag(Button)
         })
     end
 
+    -- Tear-off hint: a full-window accent overlay shown when dragging outside MainFrame
+    local function ShowTearOffHint(show)
+        if show then
+            if TearOffHint then return end
+            TearOffHint = New("Frame", {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = Library.Scheme.AccentColor,
+                BackgroundTransparency = 0.82,
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 900,
+                Parent = ScreenGui,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, Library.CornerRadius),
+                Parent = TearOffHint,
+            })
+            -- Dashed border effect via stroke
+            New("UIStroke", {
+                Color = Library.Scheme.AccentColor,
+                Thickness = 2,
+                Parent = TearOffHint,
+            })
+            local TabLabel = Button:FindFirstChildWhichIsA("TextLabel")
+            local TabName = TabLabel and TabLabel.Text or "Tab"
+            New("TextLabel", {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromScale(0.8, 0.2),
+                Text = "🪟  Release to pop out \"" .. TabName .. "\" into its own window",
+                TextColor3 = Library.Scheme.FontColor,
+                TextSize = 16,
+                TextWrapped = true,
+                ZIndex = 901,
+                Parent = TearOffHint,
+            })
+        else
+            if TearOffHint then
+                TearOffHint:Destroy()
+                TearOffHint = nil
+            end
+        end
+    end
+
+    -- Find the TabContainer frame in Container for a given Tab table
+    local function FindTabContainer(tab)
+        if not tab or not tab.Sides then return nil end
+        for _, child in ipairs(Container:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("ScrollingFrame") then
+                for _, side in ipairs(tab.Sides) do
+                    if side.Parent == child then
+                        return child
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Resolve which Library.Tabs entry owns this Button via its label text
+    local function FindTabForButton()
+        local lbl = Button:FindFirstChildWhichIsA("TextLabel")
+        if not lbl then return nil, nil end
+        local labelText = lbl.Text
+        for tabName, tab in pairs(Library.Tabs) do
+            if tabName == labelText then
+                return tabName, tab
+            end
+        end
+        return nil, nil
+    end
+
     Button.InputBegan:Connect(function(Input)
         if Input.UserInputType ~= Enum.UserInputType.MouseButton1
             and Input.UserInputType ~= Enum.UserInputType.Touch then
@@ -7023,7 +7422,6 @@ local function SetupTabDrag(Button)
         end
         DragStartY = Input.Position.Y
         IsDragging = false
-        print("[TabDrag] InputBegan on:", Button.Name, "at Y:", DragStartY)
     end)
 
     UserInputService.InputChanged:Connect(function(Input)
@@ -7041,11 +7439,11 @@ local function SetupTabDrag(Button)
             DraggingButton = Button
             Button.BackgroundTransparency = 0.7
             CreateGhost()
-            print("[TabDrag] Drag started for:", Button.Name, "initial LayoutOrder:", Button.LayoutOrder)
         end
 
         if not IsDragging then return end
 
+        local MouseX = Input.Position.X
         local MouseY = Input.Position.Y
 
         -- Move ghost with mouse
@@ -7055,6 +7453,22 @@ local function SetupTabDrag(Button)
                 MouseY - Button.AbsoluteSize.Y / 2
             )
         end
+
+        local mouseVec = Vector2.new(MouseX, MouseY)
+        local isOutsideMainFrame = not Library:MouseIsOverFrame(MainFrame, mouseVec)
+
+        if isOutsideMainFrame then
+            -- Outside the window: hide drop line, show tear-off hint
+            if DropLine then
+                DropLine:Destroy()
+                DropLine = nil
+            end
+            ShowTearOffHint(true)
+            return
+        end
+
+        -- Back inside: hide tear-off hint, show normal drop line
+        ShowTearOffHint(false)
 
         -- Collect and sort all other buttons by current layout order
         local OtherButtons = {}
@@ -7069,29 +7483,16 @@ local function SetupTabDrag(Button)
 
         if #OtherButtons == 0 then return end
 
-        -- Debug: print current sorted order
-        local orderStr = ""
-        for _, b in ipairs(OtherButtons) do
-            orderStr = orderStr .. b.Name .. "(" .. b.LayoutOrder .. ") "
-        end
-        print("[TabDrag] MouseY:", MouseY, "| Other buttons sorted:", orderStr)
-        print("[TabDrag] Dragging:", Button.Name, "current order:", Button.LayoutOrder)
-
         local TargetOrder = nil
 
-        -- Above all buttons
         if MouseY < OtherButtons[1].AbsolutePosition.Y + OtherButtons[1].AbsoluteSize.Y / 2 then
             TargetOrder = OtherButtons[1].LayoutOrder - 1
-            print("[TabDrag] Position: ABOVE ALL, TargetOrder:", TargetOrder)
             CreateDropLine(OtherButtons[1].AbsolutePosition.Y)
 
-        -- Below all buttons
         elseif MouseY > OtherButtons[#OtherButtons].AbsolutePosition.Y + OtherButtons[#OtherButtons].AbsoluteSize.Y / 2 then
             TargetOrder = OtherButtons[#OtherButtons].LayoutOrder + 1
-            print("[TabDrag] Position: BELOW ALL, TargetOrder:", TargetOrder)
             CreateDropLine(OtherButtons[#OtherButtons].AbsolutePosition.Y + OtherButtons[#OtherButtons].AbsoluteSize.Y)
 
-        -- Between buttons
         else
             for i = 1, #OtherButtons - 1 do
                 local thisBtn = OtherButtons[i]
@@ -7101,20 +7502,14 @@ local function SetupTabDrag(Button)
 
                 if MouseY >= thisMid and MouseY < nextMid then
                     TargetOrder = thisBtn.LayoutOrder + 0.5
-                    print("[TabDrag] Position: BETWEEN", thisBtn.Name, "and", nextBtn.Name, "TargetOrder:", TargetOrder)
                     CreateDropLine(nextBtn.AbsolutePosition.Y)
                     break
                 end
             end
         end
 
-        if TargetOrder == nil then
-            print("[TabDrag] WARNING: TargetOrder is nil, MouseY:", MouseY)
-            return
-        end
-
+        if TargetOrder == nil then return end
         Button.LayoutOrder = TargetOrder
-        print("[TabDrag] Set", Button.Name, "LayoutOrder to:", TargetOrder)
     end)
 
     Button.InputEnded:Connect(function(Input)
@@ -7122,33 +7517,46 @@ local function SetupTabDrag(Button)
             and Input.UserInputType ~= Enum.UserInputType.Touch then
             return
         end
+
         if IsDragging then
             IsDragging = false
             DraggingButton = nil
             DragStartY = nil
 
-            print("[TabDrag] Drag ended for:", Button.Name, "final LayoutOrder:", Button.LayoutOrder)
+            local mouseVec = Vector2.new(Mouse.X, Mouse.Y)
+            local isOutside = not Library:MouseIsOverFrame(MainFrame, mouseVec)
 
-            -- Reindex all buttons cleanly only on release
-            local AllButtons = {}
-            for _, btn in Tabs:GetChildren() do
-                if btn:IsA("TextButton") then
-                    table.insert(AllButtons, btn)
+            CleanupDrag()  -- destroys ghost, drop line, and tear-off hint
+
+            if isOutside then
+                -- Tear off: find the tab and its container
+                local tabName, tab = FindTabForButton()
+
+                if tabName and tab and not tab.IsKeyTab and not TornOffTabs[tabName] then
+                    local tabContainer = FindTabContainer(tab)
+                    if tabContainer then
+                        TearOffTab(Button, tab, tabName, tabContainer)
+                    end
                 end
+            else
+                -- Normal drop inside: reindex
+                local AllButtons = {}
+                for _, btn in Tabs:GetChildren() do
+                    if btn:IsA("TextButton") then
+                        table.insert(AllButtons, btn)
+                    end
+                end
+                table.sort(AllButtons, function(a, b)
+                    return a.LayoutOrder < b.LayoutOrder
+                end)
+                for i, btn in ipairs(AllButtons) do
+                    btn.LayoutOrder = i
+                end
+                SaveTabOrder()
             end
-            table.sort(AllButtons, function(a, b)
-                return a.LayoutOrder < b.LayoutOrder
-            end)
-            for i, btn in ipairs(AllButtons) do
-                btn.LayoutOrder = i
-                print("[TabDrag] Reindexed:", btn.Name, "-> LayoutOrder:", i)
-            end
-
-            CleanupDrag()
-            SaveTabOrder()
-            print("[TabDrag] Tab order saved")
             return
         end
+
         DragStartY = nil
         CleanupDrag()
     end)
