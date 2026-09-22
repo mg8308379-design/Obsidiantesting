@@ -8498,6 +8498,237 @@ end)
         end)
         TabButton.MouseButton1Click:Connect(Tab.Show)
 
+local TAB_NAMES_FILE = "tab_names.json"
+local SavedTabNames = {}
+
+local function LoadTabNames()
+    if readfile and isfile and isfile(TAB_NAMES_FILE) then
+        local ok, data = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(readfile(TAB_NAMES_FILE))
+        end)
+        if ok and data then
+            SavedTabNames = data
+        end
+    end
+end
+
+local function SaveTabNames()
+    if writefile then
+        pcall(function()
+            writefile(TAB_NAMES_FILE, game:GetService("HttpService"):JSONEncode(SavedTabNames))
+        end)
+    end
+end
+
+LoadTabNames()
+
+-- Apply saved name on creation
+if SavedTabNames[Name] then
+    TabLabel.Text = SavedTabNames[Name]
+end
+
+-- Right click / hold for context menu
+local TabContextMenu = nil
+
+local function CloseTabContext()
+    if TabContextMenu then
+        TabContextMenu:Destroy()
+        TabContextMenu = nil
+    end
+end
+
+local function OpenTabContext()
+    CloseTabContext()
+
+    local mousePos = UserInputService:GetMouseLocation()
+
+    TabContextMenu = New("Frame", {
+        BackgroundColor3 = Color3.fromRGB(18, 19, 22),
+        Position = UDim2.fromOffset(mousePos.X, mousePos.Y),
+        Size = UDim2.fromOffset(130, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        ZIndex = 900,
+        Parent = ScreenGui,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = TabContextMenu })
+    New("UIStroke", { Color = Color3.fromRGB(45, 47, 52), Thickness = 1, Parent = TabContextMenu })
+    New("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 2),
+        Parent = TabContextMenu,
+    })
+    New("UIPadding", {
+        PaddingTop = UDim.new(0, 6),
+        PaddingBottom = UDim.new(0, 6),
+        PaddingLeft = UDim.new(0, 6),
+        PaddingRight = UDim.new(0, 6),
+        Parent = TabContextMenu,
+    })
+
+    -- Rename option
+    local RenameBtn = New("TextButton", {
+        BackgroundColor3 = Color3.fromRGB(18, 19, 22),
+        Size = UDim2.new(1, 0, 0, 28),
+        AutoButtonColor = false,
+        Text = "Rename",
+        TextColor3 = Color3.fromRGB(185, 187, 190),
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 901,
+        Parent = TabContextMenu,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = RenameBtn })
+    New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = RenameBtn })
+
+    RenameBtn.MouseEnter:Connect(function()
+        RenameBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+        RenameBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+    RenameBtn.MouseLeave:Connect(function()
+        RenameBtn.BackgroundColor3 = Color3.fromRGB(18, 19, 22)
+        RenameBtn.TextColor3 = Color3.fromRGB(185, 187, 190)
+    end)
+
+    RenameBtn.MouseButton1Click:Connect(function()
+        CloseTabContext()
+
+        -- Inline rename input popup
+        local RenamePopup = New("Frame", {
+            BackgroundColor3 = Color3.fromRGB(18, 19, 22),
+            Position = UDim2.fromOffset(mousePos.X, mousePos.Y),
+            Size = UDim2.fromOffset(180, 70),
+            ZIndex = 910,
+            Parent = ScreenGui,
+        })
+        New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = RenamePopup })
+        New("UIStroke", { Color = Color3.fromRGB(88, 101, 242), Thickness = 1, Parent = RenamePopup })
+        New("UIPadding", {
+            PaddingTop = UDim.new(0, 8),
+            PaddingBottom = UDim.new(0, 8),
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 8),
+            Parent = RenamePopup,
+        })
+        New("UIListLayout", {
+            Padding = UDim.new(0, 6),
+            Parent = RenamePopup,
+        })
+
+        local RenameBox = New("TextBox", {
+            BackgroundColor3 = Color3.fromRGB(30, 31, 34),
+            ClearTextOnFocus = true,
+            PlaceholderText = "New name...",
+            Size = UDim2.new(1, 0, 0, 26),
+            Text = TabLabel.Text,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 911,
+            Parent = RenamePopup,
+        })
+        New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = RenameBox })
+        New("UIStroke", { Color = Color3.fromRGB(88, 101, 242), Parent = RenameBox })
+        New("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), Parent = RenameBox })
+
+        local ConfirmBtn = New("TextButton", {
+            BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+            Size = UDim2.new(1, 0, 0, 24),
+            Text = "Confirm",
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 12,
+            ZIndex = 911,
+            Parent = RenamePopup,
+        })
+        New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ConfirmBtn })
+
+        RenameBox:CaptureFocus()
+
+        local function ApplyRename()
+            local newName = RenameBox.Text:gsub("^%s*(.-)%s*$", "%1")
+            if newName ~= "" then
+                TabLabel.Text = newName
+                SavedTabNames[Name] = newName
+                SaveTabNames()
+            end
+            RenamePopup:Destroy()
+        end
+
+        ConfirmBtn.MouseButton1Click:Connect(ApplyRename)
+        RenameBox.FocusLost:Connect(function(Enter)
+            if Enter then ApplyRename() end
+        end)
+    end)
+
+    -- Reset name option
+    local ResetBtn = New("TextButton", {
+        BackgroundColor3 = Color3.fromRGB(18, 19, 22),
+        Size = UDim2.new(1, 0, 0, 28),
+        AutoButtonColor = false,
+        Text = "Reset Name",
+        TextColor3 = Color3.fromRGB(185, 187, 190),
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 901,
+        Parent = TabContextMenu,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ResetBtn })
+    New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = ResetBtn })
+
+    ResetBtn.MouseEnter:Connect(function()
+        ResetBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+        ResetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+    ResetBtn.MouseLeave:Connect(function()
+        ResetBtn.BackgroundColor3 = Color3.fromRGB(18, 19, 22)
+        ResetBtn.TextColor3 = Color3.fromRGB(185, 187, 190)
+    end)
+
+    ResetBtn.MouseButton1Click:Connect(function()
+        TabLabel.Text = Name
+        SavedTabNames[Name] = nil
+        SaveTabNames()
+        CloseTabContext()
+    end)
+end
+
+-- PC right click
+TabButton.MouseButton2Click:Connect(OpenTabContext)
+
+-- Mobile hold
+local holdThread = nil
+local holdStart = nil
+TabButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        holdStart = tick()
+        holdThread = task.delay(0.6, function()
+            OpenTabContext()
+        end)
+    end
+end)
+TabButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        if holdThread then
+            task.cancel(holdThread)
+            holdThread = nil
+        end
+    end
+end)
+
+-- Close context when clicking outside
+Library:GiveSignal(UserInputService.InputBegan:Connect(function(input)
+    if not TabContextMenu then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        local mousePos = UserInputService:GetMouseLocation()
+        local absPos = TabContextMenu.AbsolutePosition
+        local absSize = TabContextMenu.AbsoluteSize
+        if not (mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X
+            and mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y) then
+            CloseTabContext()
+        end
+    end
+end))
+
         Library.Tabs[Name] = Tab
 
         return Tab
