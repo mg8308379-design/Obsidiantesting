@@ -7166,13 +7166,9 @@ end
         }
 
         -- Dock button click
-        DockBtn.MouseButton1Click:Connect(function()
-            DockTab(TabName)
-            -- Show the tab in main window
-            if Library.Tabs[TabName] then
-                Library.Tabs[TabName]:Show()
-            end
-        end)
+DockBtn.MouseButton1Click:Connect(function()
+    DockTab(TabName)
+end)
 
         -- Close button destroys the float and docks
         FloatCloseBtn.MouseButton1Click:Connect(function()
@@ -7198,9 +7194,6 @@ end
             local mPos = Vector2.new(Mouse.X, Mouse.Y)
             if TornOffTabs[TabName] and Library:MouseIsOverFrame(MainFrame, mPos) then
                 DockTab(TabName)
-                if Library.Tabs[TabName] then
-                    Library.Tabs[TabName]:Show()
-                end
             end
         end))
 
@@ -9195,7 +9188,7 @@ end)
         TabButton.MouseButton1Click:Connect(Tab.Show)
 
 
-        
+
         Library.Tabs[Name] = Tab
 
         return Tab
