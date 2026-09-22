@@ -6798,70 +6798,186 @@ local TabOrderCounter = 0
         local DraggingButton = nil
 
         local function SetupTabDrag(Button)
-TabOrderCounter = TabOrderCounter + 1
-        Button.LayoutOrder = TabOrderCounter
-        Button.Name = "TabButton_" .. TabOrderCounter
+    TabOrderCounter = TabOrderCounter + 1
+    Button.LayoutOrder = TabOrderCounter
+    Button.Name = "TabButton_" .. TabOrderCounter
 
-            local DragStartY = nil
-            local IsDragging = false
-            local DragThreshold = 6
+    local DragStartY = nil
+    local IsDragging = false
+    local DragThreshold = 6
 
-            Button.InputBegan:Connect(function(Input)
-                if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-                    and Input.UserInputType ~= Enum.UserInputType.Touch then
-                    return
-                end
-                DragStartY = Input.Position.Y
-                IsDragging = false
-            end)
+    -- Ghost clone that follows mouse
+    local GhostClone = nil
+    -- Line indicator showing drop position
+    local DropLine = nil
 
-           UserInputService.InputChanged:Connect(function(Input)
-                if (Input.UserInputType ~= Enum.UserInputType.MouseMovement
-                    and Input.UserInputType ~= Enum.UserInputType.Touch)
-                    or DragStartY == nil then
-                    return
-                end
+    local function CleanupDrag()
+        if GhostClone then
+            GhostClone:Destroy()
+            GhostClone = nil
+        end
+        if DropLine then
+            DropLine:Destroy()
+            DropLine = nil
+        end
+        Button.BackgroundTransparency = 1
+    end
 
-                if not IsDragging then
-                    if math.abs(Input.Position.Y - DragStartY) < DragThreshold then
-                        return
-                    end
-                    IsDragging = true
-                    DraggingButton = Button
-                end
+    local function CreateGhost()
+        GhostClone = New("Frame", {
+            BackgroundColor3 = Library.Scheme.MainColor,
+            Size = UDim2.fromOffset(Button.AbsoluteSize.X, Button.AbsoluteSize.Y),
+            Position = UDim2.fromOffset(Button.AbsolutePosition.X, Button.AbsolutePosition.Y),
+            ZIndex = 999,
+            Parent = ScreenGui,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius),
+            Parent = GhostClone,
+        })
+        New("UIStroke", {
+            Color = Library.Scheme.AccentColor,
+            Thickness = 1,
+            Parent = GhostClone,
+        })
+        -- Copy the label text into ghost
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(30, 0),
+            Size = UDim2.new(1, -30, 1, 0),
+            Text = Button:FindFirstChildWhichIsA("TextLabel") and Button:FindFirstChildWhichIsA("TextLabel").Text or "",
+            TextColor3 = Library.Scheme.FontColor,
+            TextSize = 16,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 1000,
+            Parent = GhostClone,
+        })
+        -- Slightly transparent
+        GhostClone.BackgroundTransparency = 0.3
+    end
 
-                local MouseY = Input.Position.Y
-                for _, OtherButton in Tabs:GetChildren() do
-                    if not OtherButton:IsA("TextButton") or OtherButton == Button then
-                        continue
-                    end
-                    local AbsY = OtherButton.AbsolutePosition.Y
-                    local AbsH = OtherButton.AbsoluteSize.Y
-                    if MouseY >= AbsY and MouseY <= AbsY + AbsH then
-                        local MyOrder = Button.LayoutOrder
-                        Button.LayoutOrder = OtherButton.LayoutOrder
-                        OtherButton.LayoutOrder = MyOrder
-                        break
-                    end
-                end
-            end)
+    local function CreateDropLine(yPos)
+        if DropLine then
+            DropLine:Destroy()
+        end
+        DropLine = New("Frame", {
+            BackgroundColor3 = Library.Scheme.AccentColor,
+            Position = UDim2.fromOffset(Button.AbsolutePosition.X, yPos - 1),
+            Size = UDim2.fromOffset(Button.AbsoluteSize.X, 2),
+            ZIndex = 998,
+            Parent = ScreenGui,
+        })
+    end
 
-            Button.InputEnded:Connect(function(Input)
-                if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-                    and Input.UserInputType ~= Enum.UserInputType.Touch then
-                    return
-                end
-                if IsDragging then
-                    IsDragging = false
-                    DraggingButton = nil
-                    DragStartY = nil
-                    SaveTabOrder()
-                    return
-                end
-                DragStartY = nil
-            end)
+    Button.InputBegan:Connect(function(Input)
+        if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and Input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        DragStartY = Input.Position.Y
+        IsDragging = false
+    end)
+
+    UserInputService.InputChanged:Connect(function(Input)
+        if (Input.UserInputType ~= Enum.UserInputType.MouseMovement
+            and Input.UserInputType ~= Enum.UserInputType.Touch)
+            or DragStartY == nil then
+            return
         end
 
+        if not IsDragging then
+            if math.abs(Input.Position.Y - DragStartY) < DragThreshold then
+                return
+            end
+            IsDragging = true
+            DraggingButton = Button
+            -- Make original semi transparent
+            Button.BackgroundTransparency = 0.7
+            CreateGhost()
+        end
+
+        if not IsDragging then return end
+
+        local MouseY = Input.Position.Y
+        local MouseX = Input.Position.X
+
+        -- Move ghost with mouse
+        if GhostClone then
+            GhostClone.Position = UDim2.fromOffset(
+                Button.AbsolutePosition.X,
+                MouseY - Button.AbsoluteSize.Y / 2
+            )
+        end
+
+        -- Find drop position and show line
+        local ClosestButton = nil
+        local ClosestY = nil
+        local InsertBefore = true
+
+        for _, OtherButton in Tabs:GetChildren() do
+            if not OtherButton:IsA("TextButton") or OtherButton == Button then
+                continue
+            end
+            local AbsY = OtherButton.AbsolutePosition.Y
+            local AbsH = OtherButton.AbsoluteSize.Y
+            local MidY = AbsY + AbsH / 2
+
+            if MouseY < MidY then
+                if not ClosestY or AbsY < ClosestY then
+                    ClosestButton = OtherButton
+                    ClosestY = AbsY
+                    InsertBefore = true
+                end
+            else
+                if not ClosestY or AbsY + AbsH > ClosestY then
+                    ClosestButton = OtherButton
+                    ClosestY = AbsY + AbsH
+                    InsertBefore = false
+                end
+            end
+        end
+
+        -- Show drop line
+        if ClosestButton then
+            local lineY = InsertBefore 
+                and ClosestButton.AbsolutePosition.Y 
+                or (ClosestButton.AbsolutePosition.Y + ClosestButton.AbsoluteSize.Y)
+            CreateDropLine(lineY)
+        end
+
+        -- Swap order live
+        for _, OtherButton in Tabs:GetChildren() do
+            if not OtherButton:IsA("TextButton") or OtherButton == Button then
+                continue
+            end
+            local AbsY = OtherButton.AbsolutePosition.Y
+            local AbsH = OtherButton.AbsoluteSize.Y
+            if MouseY >= AbsY and MouseY <= AbsY + AbsH then
+                local MyOrder = Button.LayoutOrder
+                Button.LayoutOrder = OtherButton.LayoutOrder
+                OtherButton.LayoutOrder = MyOrder
+                break
+            end
+        end
+    end)
+
+    Button.InputEnded:Connect(function(Input)
+        if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and Input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        if IsDragging then
+            IsDragging = false
+            DraggingButton = nil
+            DragStartY = nil
+            CleanupDrag()
+            SaveTabOrder()
+            return
+        end
+        DragStartY = nil
+        CleanupDrag()
+    end)
+end
 
 
     local function LoadTabOrder()
