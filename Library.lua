@@ -7221,8 +7221,33 @@ UpdateButton.MouseButton1Click:Connect(function()
         return
     end
 
-    Library:Unload()
-    loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/544f64759db6021216af8ca483bb53c4.lua"))()
+    local remoteVersion = game:HttpGet("https://raw.githubusercontent.com/mg8308379-design/Obsidiantesting/refs/heads/main/Version.txt"):gsub("%s+", "")
+
+    local UpdateDialog = Window:AddDialog("UpdateDialog", {
+        Title = "Update",
+        Description = "Do you wish to update to UI version: " .. remoteVersion,
+        AutoDismiss = true,
+        OutsideClickDismiss = true,
+        FooterButtons = {
+            Cancel = {
+                Title = "Cancel",
+                Variant = "Ghost",
+                Order = 1,
+                Callback = function()
+                    -- just closes
+                end
+            },
+            Confirm = {
+                Title = "Confirm",
+                Variant = "Primary",
+                Order = 2,
+                Callback = function()
+                    Library:Unload()
+                    loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/87203f9d714db3fcb08dbe836a081bb3.lua"))()
+                end
+            }
+        }
+    })
 end)
 
 task.spawn(function()
