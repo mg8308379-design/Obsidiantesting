@@ -8708,9 +8708,9 @@ local function OpenTabContext()
         end)
 
         -- Use MouseButton1Down instead of Click to beat the outside-click listener
-        btn.MouseButton1Down:Connect(function()
-            task.spawn(callback)
-        end)
+btn.Activated:Connect(function()
+    task.spawn(callback)
+end)
     end
 
     CreateMenuBtn("Rename", nil, function()
