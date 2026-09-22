@@ -8589,75 +8589,108 @@ local function OpenTabContext()
         RenameBtn.TextColor3 = Color3.fromRGB(185, 187, 190)
     end)
 
-    RenameBtn.MouseButton1Click:Connect(function()
-        CloseTabContext()
+RenameBtn.MouseButton1Click:Connect(function()
+    CloseTabContext()
 
-        -- Inline rename input popup
-        local RenamePopup = New("Frame", {
-            BackgroundColor3 = Color3.fromRGB(18, 19, 22),
-            Position = UDim2.fromOffset(mousePos.X, mousePos.Y),
-            Size = UDim2.fromOffset(180, 70),
-            ZIndex = 910,
-            Parent = ScreenGui,
-        })
-        New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = RenamePopup })
-        New("UIStroke", { Color = Color3.fromRGB(88, 101, 242), Thickness = 1, Parent = RenamePopup })
-        New("UIPadding", {
-            PaddingTop = UDim.new(0, 8),
-            PaddingBottom = UDim.new(0, 8),
-            PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
-            Parent = RenamePopup,
-        })
-        New("UIListLayout", {
-            Padding = UDim.new(0, 6),
-            Parent = RenamePopup,
-        })
+    -- Get position relative to the tab button itself
+    local btnPos = TabButton.AbsolutePosition
+    local btnSize = TabButton.AbsoluteSize
 
-        local RenameBox = New("TextBox", {
-            BackgroundColor3 = Color3.fromRGB(30, 31, 34),
-            ClearTextOnFocus = true,
-            PlaceholderText = "New name...",
-            Size = UDim2.new(1, 0, 0, 26),
-            Text = TabLabel.Text,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
-            TextSize = 13,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            ZIndex = 911,
-            Parent = RenamePopup,
-        })
-        New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = RenameBox })
-        New("UIStroke", { Color = Color3.fromRGB(88, 101, 242), Parent = RenameBox })
-        New("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), Parent = RenameBox })
+    local RenamePopup = New("Frame", {
+        BackgroundColor3 = Color3.fromRGB(18, 19, 22),
+        Position = UDim2.fromOffset(btnPos.X + btnSize.X + 4, btnPos.Y),
+        Size = UDim2.fromOffset(180, 78),
+        ZIndex = 910,
+        Parent = ScreenGui,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = RenamePopup })
+    New("UIStroke", { Color = Color3.fromRGB(88, 101, 242), Thickness = 1, Parent = RenamePopup })
+    New("UIPadding", {
+        PaddingTop = UDim.new(0, 8),
+        PaddingBottom = UDim.new(0, 8),
+        PaddingLeft = UDim.new(0, 8),
+        PaddingRight = UDim.new(0, 8),
+        Parent = RenamePopup,
+    })
+    New("UIListLayout", {
+        Padding = UDim.new(0, 6),
+        Parent = RenamePopup,
+    })
 
-        local ConfirmBtn = New("TextButton", {
-            BackgroundColor3 = Color3.fromRGB(88, 101, 242),
-            Size = UDim2.new(1, 0, 0, 24),
-            Text = "Confirm",
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 12,
-            ZIndex = 911,
-            Parent = RenamePopup,
-        })
-        New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ConfirmBtn })
-
-        RenameBox:CaptureFocus()
-
-        local function ApplyRename()
-            local newName = RenameBox.Text:gsub("^%s*(.-)%s*$", "%1")
-            if newName ~= "" then
-                TabLabel.Text = newName
-                SavedTabNames[Name] = newName
-                SaveTabNames()
-            end
-            RenamePopup:Destroy()
-        end
-
-        ConfirmBtn.MouseButton1Click:Connect(ApplyRename)
-        RenameBox.FocusLost:Connect(function(Enter)
-            if Enter then ApplyRename() end
-        end)
+    -- X cancel button top right
+    local CancelX = New("TextButton", {
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(1, -4, 0, 4),
+        Size = UDim2.fromOffset(16, 16),
+        Text = "✕",
+        TextColor3 = Color3.fromRGB(150, 150, 150),
+        TextSize = 11,
+        ZIndex = 912,
+        Parent = RenamePopup,
+    })
+    CancelX.MouseButton1Click:Connect(function()
+        RenamePopup:Destroy()
     end)
+
+    local RenameBox = New("TextBox", {
+        BackgroundColor3 = Color3.fromRGB(30, 31, 34),
+        ClearTextOnFocus = true,
+        PlaceholderText = "New name...",
+        Size = UDim2.new(1, 0, 0, 26),
+        Text = TabLabel.Text,
+        TextColor3 = Color3.fromRGB(220, 220, 220),
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 911,
+        Parent = RenamePopup,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = RenameBox })
+    New("UIStroke", { Color = Color3.fromRGB(88, 101, 242), Parent = RenameBox })
+    New("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), Parent = RenameBox })
+
+    local ConfirmBtn = New("TextButton", {
+        BackgroundColor3 = Color3.fromRGB(88, 101, 242),
+        Size = UDim2.new(1, 0, 0, 24),
+        Text = "Confirm",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 12,
+        ZIndex = 911,
+        Parent = RenamePopup,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ConfirmBtn })
+
+    RenameBox:CaptureFocus()
+
+    -- Follow the tab button position if UI moves
+    local posConnection = TabButton:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+        local newBtnPos = TabButton.AbsolutePosition
+        local newBtnSize = TabButton.AbsoluteSize
+        RenamePopup.Position = UDim2.fromOffset(newBtnPos.X + newBtnSize.X + 4, newBtnPos.Y)
+    end)
+
+    local function ApplyRename()
+        local newName = RenameBox.Text:gsub("^%s*(.-)%s*$", "%1")
+        if newName ~= "" then
+            TabLabel.Text = newName
+            SavedTabNames[Name] = newName
+            SaveTabNames()
+        end
+        posConnection:Disconnect()
+        RenamePopup:Destroy()
+    end
+
+    local function CancelRename()
+        posConnection:Disconnect()
+        RenamePopup:Destroy()
+    end
+
+    ConfirmBtn.MouseButton1Click:Connect(ApplyRename)
+    CancelX.MouseButton1Click:Connect(CancelRename)
+    RenameBox.FocusLost:Connect(function(Enter)
+        if Enter then ApplyRename() end
+    end)
+end)
 
     -- Reset name option
     local ResetBtn = New("TextButton", {
