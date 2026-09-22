@@ -6713,85 +6713,233 @@ local function ReindexSide(Side)
     end
 
 local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRight, GroupboxName)
-        local DragStartPos = nil
-        local IsDragging = false
-        local DragThreshold = 6
+    local DragStartPos = nil
+    local IsDragging = false
+    local DragThreshold = 6
 
-        DragHandle.InputBegan:Connect(function(Input)
-            if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-                and Input.UserInputType ~= Enum.UserInputType.Touch then
-                return
+    local GhostClone = nil
+    local DropLine = nil
+
+    local function CleanupGroupboxDrag()
+        if GhostClone then
+            GhostClone:Destroy()
+            GhostClone = nil
+        end
+        if DropLine then
+            DropLine:Destroy()
+            DropLine = nil
+        end
+        BoxHolder.BackgroundTransparency = 1
+    end
+
+    local function CreateGroupboxGhost()
+        GhostClone = New("Frame", {
+            BackgroundColor3 = Library.Scheme.MainColor,
+            Size = UDim2.fromOffset(BoxHolder.AbsoluteSize.X, BoxHolder.AbsoluteSize.Y),
+            Position = UDim2.fromOffset(BoxHolder.AbsolutePosition.X, BoxHolder.AbsolutePosition.Y),
+            ZIndex = 999,
+            Parent = ScreenGui,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius),
+            Parent = GhostClone,
+        })
+        New("UIStroke", {
+            Color = Library.Scheme.AccentColor,
+            Thickness = 1,
+            Parent = GhostClone,
+        })
+        -- Show the groupbox name label in the ghost
+        local nameLabel = BoxHolder:FindFirstChild(GroupboxName, true)
+        local labelText = GroupboxName or ""
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(12, 0),
+            Size = UDim2.new(1, -12, 0, 34),
+            Text = labelText,
+            TextColor3 = Library.Scheme.FontColor,
+            TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 1000,
+            Parent = GhostClone,
+        })
+        GhostClone.BackgroundTransparency = 0.3
+    end
+
+    local function CreateGroupboxDropLine(yPos, xPos, width)
+        if DropLine then
+            DropLine:Destroy()
+        end
+        DropLine = New("Frame", {
+            BackgroundColor3 = Library.Scheme.AccentColor,
+            Position = UDim2.fromOffset(xPos, yPos - 1),
+            Size = UDim2.fromOffset(width, 2),
+            ZIndex = 998,
+            Parent = ScreenGui,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = DropLine,
+        })
+    end
+
+    local function GetSortedSideChildren(side)
+        local children = {}
+        for _, child in ipairs(side:GetChildren()) do
+            if child:IsA("Frame") and child.Name ~= "" and child ~= BoxHolder then
+                table.insert(children, child)
             end
-            DragStartPos = Input.Position
-            IsDragging = false
+        end
+        table.sort(children, function(a, b)
+            return a.LayoutOrder < b.LayoutOrder
         end)
+        return children
+    end
 
-        UserInputService.InputChanged:Connect(function(Input)
-            if (Input.UserInputType ~= Enum.UserInputType.MouseMovement
-                and Input.UserInputType ~= Enum.UserInputType.Touch)
-                or not DragStartPos then
-                return
-            end
+    DragHandle.InputBegan:Connect(function(Input)
+        if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and Input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        DragStartPos = Input.Position
+        IsDragging = false
+    end)
 
-            if not IsDragging and (Input.Position - DragStartPos).Magnitude >= DragThreshold then
-                IsDragging = true
-            end
-        end)
+    UserInputService.InputChanged:Connect(function(Input)
+        if (Input.UserInputType ~= Enum.UserInputType.MouseMovement
+            and Input.UserInputType ~= Enum.UserInputType.Touch)
+            or not DragStartPos then
+            return
+        end
 
-        DragHandle.InputEnded:Connect(function(Input)
-            if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-                and Input.UserInputType ~= Enum.UserInputType.Touch then
-                return
-            end
-            if not DragStartPos then return end
+        if not IsDragging and (Input.Position - DragStartPos).Magnitude >= DragThreshold then
+            IsDragging = true
+            BoxHolder.BackgroundTransparency = 0.7
+            CreateGroupboxGhost()
+        end
 
-            if IsDragging then
-                local TabTarget = GetTabButtonDropTarget()
+        if not IsDragging then return end
 
-               if TabTarget and TabTarget.TabName ~= TabName then
-                    --// Dropped onto a different tab's button -> move groupbox there
-                    local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabTarget.TabLeft, TabTarget.TabRight)
-                    local SourceSide = BoxHolder.Parent
+        local MouseX = Mouse.X
+        local MouseY = Mouse.Y
 
-                    BoxHolder.LayoutOrder = InsertOrder
-                    BoxHolder.Parent = TargetSide
+        -- Move ghost with mouse
+        if GhostClone then
+            GhostClone.Position = UDim2.fromOffset(
+                MouseX - GhostClone.AbsoluteSize.X / 2,
+                MouseY - 17
+            )
+        end
 
-                    ReindexSide(TargetSide)
-                    ReindexSide(SourceSide)
+        -- Determine which side the mouse is over
+        local ActiveSide = TabLeft
+        if Library:MouseIsOverFrame(TabRight, Vector2.new(MouseX, MouseY)) then
+            ActiveSide = TabRight
+        elseif Library:MouseIsOverFrame(TabLeft, Vector2.new(MouseX, MouseY)) then
+            ActiveSide = TabLeft
+        end
 
-                    local SourceTab = Library.Tabs[TabName]
-                    local DestTab = Library.Tabs[TabTarget.TabName]
-                    if SourceTab and DestTab and GroupboxName then
-                        DestTab.Groupboxes[GroupboxName] = SourceTab.Groupboxes[GroupboxName]
-                        SourceTab.Groupboxes[GroupboxName] = nil
-                    end
+        local OtherBoxes = GetSortedSideChildren(ActiveSide)
+        local sideAbsPos = ActiveSide.AbsolutePosition
+        local sideAbsSize = ActiveSide.AbsoluteSize
 
-                    SaveGroupboxOrder()
-                    SaveGroupboxOrder()
-                else
-                    local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabLeft, TabRight)
-                    local SourceSide = BoxHolder.Parent
-
-                    BoxHolder.LayoutOrder = InsertOrder
-                    if SourceSide ~= TargetSide then
-                        BoxHolder.Parent = TargetSide
-                    end
-
-                    ReindexSide(TargetSide)
-                    if SourceSide ~= TargetSide then
-                        ReindexSide(SourceSide)
-                    end
-
-                    SaveGroupboxOrder()
+        if #OtherBoxes == 0 then
+            -- Drop line at top of the side
+            CreateGroupboxDropLine(
+                sideAbsPos.Y + 4,
+                sideAbsPos.X + 2,
+                sideAbsSize.X - 4
+            )
+        elseif MouseY < OtherBoxes[1].AbsolutePosition.Y + OtherBoxes[1].AbsoluteSize.Y / 2 then
+            -- Above all
+            local b = OtherBoxes[1]
+            CreateGroupboxDropLine(
+                b.AbsolutePosition.Y,
+                b.AbsolutePosition.X,
+                b.AbsoluteSize.X
+            )
+        elseif MouseY >= OtherBoxes[#OtherBoxes].AbsolutePosition.Y + OtherBoxes[#OtherBoxes].AbsoluteSize.Y / 2 then
+            -- Below all
+            local b = OtherBoxes[#OtherBoxes]
+            CreateGroupboxDropLine(
+                b.AbsolutePosition.Y + b.AbsoluteSize.Y,
+                b.AbsolutePosition.X,
+                b.AbsoluteSize.X
+            )
+        else
+            -- Between two boxes
+            for i = 1, #OtherBoxes - 1 do
+                local thisB = OtherBoxes[i]
+                local nextB = OtherBoxes[i + 1]
+                local thisMid = thisB.AbsolutePosition.Y + thisB.AbsoluteSize.Y / 2
+                local nextMid = nextB.AbsolutePosition.Y + nextB.AbsoluteSize.Y / 2
+                if MouseY >= thisMid and MouseY < nextMid then
+                    CreateGroupboxDropLine(
+                        nextB.AbsolutePosition.Y,
+                        nextB.AbsolutePosition.X,
+                        nextB.AbsoluteSize.X
+                    )
+                    break
                 end
             end
+        end
+    end)
 
-            IsDragging = false
-            DragStartPos = nil
-        end)
+    DragHandle.InputEnded:Connect(function(Input)
+        if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and Input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        if not DragStartPos then return end
 
-        return function() return IsDragging end
-    end
+        if IsDragging then
+            CleanupGroupboxDrag()
+
+            local TabTarget = GetTabButtonDropTarget()
+
+            if TabTarget and TabTarget.TabName ~= TabName then
+                -- Dropped onto a different tab button -> move groupbox there
+                local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabTarget.TabLeft, TabTarget.TabRight)
+                local SourceSide = BoxHolder.Parent
+
+                BoxHolder.LayoutOrder = InsertOrder
+                BoxHolder.Parent = TargetSide
+
+                ReindexSide(TargetSide)
+                ReindexSide(SourceSide)
+
+                local SourceTab = Library.Tabs[TabName]
+                local DestTab = Library.Tabs[TabTarget.TabName]
+                if SourceTab and DestTab and GroupboxName then
+                    DestTab.Groupboxes[GroupboxName] = SourceTab.Groupboxes[GroupboxName]
+                    SourceTab.Groupboxes[GroupboxName] = nil
+                end
+
+                SaveGroupboxOrder()
+            else
+                local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabLeft, TabRight)
+                local SourceSide = BoxHolder.Parent
+
+                BoxHolder.LayoutOrder = InsertOrder
+                if SourceSide ~= TargetSide then
+                    BoxHolder.Parent = TargetSide
+                end
+
+                ReindexSide(TargetSide)
+                if SourceSide ~= TargetSide then
+                    ReindexSide(SourceSide)
+                end
+
+                SaveGroupboxOrder()
+            end
+        end
+
+        IsDragging = false
+        DragStartPos = nil
+    end)
+
+    return function() return IsDragging end
+end
 
 local TabOrderCounter = 0
         local DraggingTab = nil
