@@ -7195,7 +7195,6 @@ local NormalSize = FloatFrame.Size
 
 FloatCloseBtn.MouseButton1Click:Connect(function()
     IsMinimized = not IsMinimized
-    print("Minimized:", IsMinimized, "Line visible:", FloatTitleLine.Visible)
 
     if IsMinimized then
         FloatTitleLine.Visible = false
@@ -7210,6 +7209,7 @@ FloatCloseBtn.MouseButton1Click:Connect(function()
         FloatBottomBar.Visible = true
         FloatFrame.Size = NormalSize
     end
+     print("Minimized:", IsMinimized, "Line visible:", FloatTitleLine.Visible)
 end)
 
         -- Re-dock on title bar drag: on InputEnded check if over MainFrame
