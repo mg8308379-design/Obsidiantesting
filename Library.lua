@@ -1686,7 +1686,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
             end
         end
 
-        if (Library.IsMobile or IsTouch) and not ExcludeDragging then
+                if (Library.IsMobile or IsTouch) and not ExcludeDragging then
             DragAllowed = false
             TouchCancelled = false
 
@@ -1707,7 +1707,9 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
                 end
             end)
         else
-            DragAllowed = true
+            -- ExcludeDragging (or not mobile/touch): no hold-to-drag story here,
+            -- so DragAllowed must stay false — click detection is purely time-based.
+            DragAllowed = false
         end
 
         ChangedConnection = Input.Changed:Connect(function()
