@@ -4201,13 +4201,11 @@ end
                 return
             end
 
-            TweenService:Create(Label, Library.TweenInfo, {
-                TextTransparency = Toggle.Value and 0 or 0.4,
-            }):Play()
-            TweenService:Create(Ball, Library.TweenInfo, {
-                AnchorPoint = Vector2.new(Offset, 0),
-                Position = UDim2.fromScale(Offset, 0),
-            }):Play()
+TweenService:Create(Label, Library.TweenInfo, {
+    TextTransparency = Toggle.Value and 0 or 0.4,
+}):Play()
+Ball.AnchorPoint = Vector2.new(Offset, 0)
+Ball.Position = UDim2.fromScale(Offset, 0)
 
 Ball.BackgroundColor3 = Library.Scheme.FontColor
 
