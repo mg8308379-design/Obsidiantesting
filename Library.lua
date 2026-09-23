@@ -7116,7 +7116,7 @@ SetupFloatButtonHover(FloatCloseBtn)
             CornerRadius = UDim.new(0, Library.CornerRadius),
             Parent = FloatBottomBg,
         }))
-        Library:MakeLine(FloatFrame, {
+        local FloatBottomLine = Library:MakeLine(FloatFrame, {
             AnchorPoint = Vector2.new(0, 1),
             Position = UDim2.new(0, 0, 1, -20),
             Size = UDim2.new(1, 0, 0, 1),
@@ -7198,18 +7198,19 @@ FloatCloseBtn.MouseButton1Click:Connect(function()
 
     if IsMinimized then
         FloatTitleLine.Visible = false
+        FloatBottomLine.Visible = false   -- ADD THIS
         TabContainer.Visible = false
         FloatBottomBg.Visible = false
         FloatBottomBar.Visible = false
         FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 47)
     else
         FloatTitleLine.Visible = true
+        FloatBottomLine.Visible = true    -- ADD THIS
         TabContainer.Visible = true
         FloatBottomBg.Visible = true
         FloatBottomBar.Visible = true
         FloatFrame.Size = NormalSize
     end
-     print("Minimized:", IsMinimized, "Line visible:", FloatTitleLine.Visible)
 end)
 
         -- Re-dock on title bar drag: on InputEnded check if over MainFrame
