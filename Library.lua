@@ -7028,7 +7028,7 @@ local FloatFrame = New("TextButton", {
         Library:AddOutline(FloatFrame)
 
 local FloatTitleLine = Library:MakeLine(FloatFrame, {
-    Position = UDim2.fromOffset(0, 48),
+    Position = UDim2.fromOffset(0, 49),
     Size = UDim2.new(1, 0, 0, 1),
 })
 
@@ -7201,7 +7201,7 @@ FloatCloseBtn.MouseButton1Click:Connect(function()
 
 if IsMinimized then
     FloatTitleLine.Visible = false
-    FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 48)
+    FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 49)
 else
     FloatTitleLine.Visible = true
     FloatFrame.Size = NormalSize
