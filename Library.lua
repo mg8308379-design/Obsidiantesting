@@ -7195,6 +7195,7 @@ local NormalSize = FloatFrame.Size
 
 FloatCloseBtn.MouseButton1Click:Connect(function()
     IsMinimized = not IsMinimized
+    print("Minimized:", IsMinimized, "Line visible:", FloatTitleLine.Visible)
 
     if IsMinimized then
         FloatTitleLine.Visible = false
