@@ -6850,6 +6850,16 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
         return children
     end
 
+    local function GetCurrentTabContext()
+        local ParentSide = BoxHolder.Parent
+        for _, Entry in Library.GroupboxDragTargets do
+            if Entry.TabLeft == ParentSide or Entry.TabRight == ParentSide then
+                return Entry.TabName, Entry.TabLeft, Entry.TabRight
+            end
+        end
+        return TabName, TabLeft, TabRight
+    end
+
     DragHandle.InputBegan:Connect(function(Input)
         if Input.UserInputType ~= Enum.UserInputType.MouseButton1
             and Input.UserInputType ~= Enum.UserInputType.Touch then
@@ -6887,12 +6897,14 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
             )
         end
 
-        -- Determine which side the mouse is over
-        local ActiveSide = TabLeft
-        if Library:MouseIsOverFrame(TabRight, Vector2.new(MouseX, MouseY)) then
-            ActiveSide = TabRight
-        elseif Library:MouseIsOverFrame(TabLeft, Vector2.new(MouseX, MouseY)) then
-            ActiveSide = TabLeft
+        -- Determine which side the mouse is over (based on the groupbox's CURRENT tab)
+        local _, CurrentTabLeft, CurrentTabRight = GetCurrentTabContext()
+
+        local ActiveSide = CurrentTabLeft
+        if Library:MouseIsOverFrame(CurrentTabRight, Vector2.new(MouseX, MouseY)) then
+            ActiveSide = CurrentTabRight
+        elseif Library:MouseIsOverFrame(CurrentTabLeft, Vector2.new(MouseX, MouseY)) then
+            ActiveSide = CurrentTabLeft
         end
 
         local OtherBoxes = GetSortedSideChildren(ActiveSide)
@@ -6951,9 +6963,10 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
         if IsDragging then
             CleanupGroupboxDrag()
 
+            local CurrentTabName, CurrentTabLeft, CurrentTabRight = GetCurrentTabContext()
             local TabTarget = GetTabButtonDropTarget()
 
-            if TabTarget and TabTarget.TabName ~= TabName then
+            if TabTarget and TabTarget.TabName ~= CurrentTabName then
                 -- Dropped onto a different tab button -> move groupbox there
                 local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabTarget.TabLeft, TabTarget.TabRight)
                 local SourceSide = BoxHolder.Parent
@@ -6964,7 +6977,7 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
                 ReindexSide(TargetSide)
                 ReindexSide(SourceSide)
 
-                local SourceTab = Library.Tabs[TabName]
+                local SourceTab = Library.Tabs[CurrentTabName]
                 local DestTab = Library.Tabs[TabTarget.TabName]
                 if SourceTab and DestTab and GroupboxName then
                     DestTab.Groupboxes[GroupboxName] = SourceTab.Groupboxes[GroupboxName]
@@ -6973,7 +6986,7 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
 
                 SaveGroupboxOrder()
             else
-                local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, TabLeft, TabRight)
+                local TargetSide, InsertOrder = GetGroupboxDropTarget(BoxHolder, CurrentTabLeft, CurrentTabRight)
                 local SourceSide = BoxHolder.Parent
 
                 BoxHolder.LayoutOrder = InsertOrder
@@ -6989,7 +7002,6 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
                 SaveGroupboxOrder()
             end
         end
-
         IsDragging = false
         DragStartPos = nil
     end)
