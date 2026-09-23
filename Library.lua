@@ -7075,8 +7075,8 @@ end
             BackgroundColor3 = "MainColor",
             Position = UDim2.new(1, -8, 0.5, 0),
             Size = UDim2.fromOffset(30, 24),
-            Text = "✕",
-            TextColor3 = Library.Scheme.RedColor,
+Text = "−",
+TextColor3 = Library.Scheme.FontColor,
             TextSize = 14,
             ZIndex = FloatFrame.ZIndex + 1,
             Parent = FloatTopBar,
@@ -7086,7 +7086,22 @@ end
             Parent = FloatCloseBtn,
         }))
         Library:AddOutline(FloatCloseBtn)
+local function SetupFloatButtonHover(Button)
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(Button, Library.TweenInfo, {
+            BackgroundColor3 = Library.Scheme.BackgroundColor,
+        }):Play()
+    end)
 
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(Button, Library.TweenInfo, {
+            BackgroundColor3 = Library.Scheme.MainColor,
+        }):Play()
+    end)
+end
+
+SetupFloatButtonHover(DockBtn)
+SetupFloatButtonHover(FloatCloseBtn)
         -- Bottom bar (footer + resize)
         local FloatBottomBg = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
@@ -7174,10 +7189,23 @@ DockBtn.MouseButton1Click:Connect(function()
     DockTab(TabName)
 end)
 
-        -- Close button destroys the float and docks
-        FloatCloseBtn.MouseButton1Click:Connect(function()
-            DockTab(TabName)
-        end)
+-- Minimize button
+local IsMinimized = false
+local NormalSize = FloatFrame.Size
+
+FloatCloseBtn.MouseButton1Click:Connect(function()
+    IsMinimized = not IsMinimized
+
+    TabContainer.Visible = not IsMinimized
+    FloatBottomBg.Visible = not IsMinimized
+    FloatBottomBar.Visible = not IsMinimized
+
+    if IsMinimized then
+        FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 49)
+    else
+        FloatFrame.Size = NormalSize
+    end
+end)
 
         -- Re-dock on title bar drag: on InputEnded check if over MainFrame
         local IsTitleDragging = false
