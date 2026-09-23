@@ -7029,7 +7029,12 @@ end
     local function DockTab(TabName)
         local torn = TornOffTabs[TabName]
         if not torn then return end
-
+for _, Entry in Library.GroupboxDragTargets do
+    if Entry.TabName == TabName then
+        Entry.Button = torn.Button
+        break
+    end
+end
         -- Move the TabContainer back into the main Container
         torn.TabContainer.Parent = Container
         torn.TabContainer.Size = UDim2.fromScale(1, 1)
@@ -7252,7 +7257,14 @@ SetupFloatButtonHover(FloatCloseBtn)
 TabContainer.Position = UDim2.fromOffset(5, 49)
 TabContainer.Size = UDim2.new(1, -10, 1, -70)
 
-
+-- Make the torn-off window a valid groupbox drop target
+-- This lets groupboxes from other tabs be dragged into this torn-off tab.
+for _, Entry in Library.GroupboxDragTargets do
+    if Entry.TabName == TabName then
+        Entry.Button = FloatFrame
+        break
+    end
+end
 
         -- Make it draggable (title bar drag)
         Library:MakeDraggable(FloatFrame, FloatTopBar, true)
