@@ -6864,35 +6864,15 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
             return
         end
 
-                if not IsDragging then
-            local Distance = math.abs(Input.Position.Y - DragStartY)
-            local IsTouchLike = (Library.IsMobile or Input.UserInputType == Enum.UserInputType.Touch)
-
-            if IsTouchLike and not DragAllowed then
-                -- Still inside the hold window. If the finger is moving like a scroll,
-                -- cancel the hold so the ScrollingFrame gets the gesture instead.
-                if Distance > ScrollThreshold then
-                    TouchCancelled = true
-                    if TouchHoldThread then
-                        task.cancel(TouchHoldThread)
-                        TouchHoldThread = nil
-                    end
-                    DragStartY = nil
-                end
+        if not IsDragging then
+            local Delta = (Input.Position - DragStartPos).Magnitude
+            if Delta < DragThreshold then
                 return
             end
-
-            if Distance < DragThreshold then
-                return
-            end
-
             IsDragging = true
-            DraggingButton = Button
-            Button.BackgroundTransparency = 0.7
-            CreateGhost()
+            BoxHolder.BackgroundTransparency = 0.7
+            CreateGroupboxGhost()
         end
-
-        if not IsDragging then return end
 
         local MouseX = Mouse.X
         local MouseY = Mouse.Y
@@ -7382,6 +7362,7 @@ local function SetupTabDrag(Button)
     local DragStartY = nil
     local IsDragging = false
     local DragThreshold = 6
+    local ScrollThreshold = 8
     local DragAllowed = false
     local TouchHoldThread = nil
     local TouchCancelled = false
@@ -7556,9 +7537,27 @@ local function SetupTabDrag(Button)
         end
 
         if not IsDragging then
-            if math.abs(Input.Position.Y - DragStartY) < DragThreshold then
+            local Distance = math.abs(Input.Position.Y - DragStartY)
+            local IsTouchLike = (Library.IsMobile or Input.UserInputType == Enum.UserInputType.Touch)
+
+            if IsTouchLike and not DragAllowed then
+                -- Still inside the hold window. If the finger is moving like a scroll,
+                -- cancel the hold so the ScrollingFrame gets the gesture instead.
+                if Distance > ScrollThreshold then
+                    TouchCancelled = true
+                    if TouchHoldThread then
+                        task.cancel(TouchHoldThread)
+                        TouchHoldThread = nil
+                    end
+                    DragStartY = nil
+                end
                 return
             end
+
+            if Distance < DragThreshold then
+                return
+            end
+
             IsDragging = true
             DraggingButton = Button
             Button.BackgroundTransparency = 0.7
