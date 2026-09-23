@@ -4183,8 +4183,12 @@ do
             Switch.BackgroundColor3 = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.MainColor
             SwitchStroke.Color = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.OutlineColor
 
-            Library.Registry[Switch].BackgroundColor3 = Toggle.Value and "AccentColor" or "MainColor"
-            Library.Registry[SwitchStroke].Color = Toggle.Value and "AccentColor" or "OutlineColor"
+            if Library.Registry[Switch] then
+    Library.Registry[Switch].BackgroundColor3 = Toggle.Value and "AccentColor" or "MainColor"
+end
+            if Library.Registry[SwitchStroke] then
+    Library.Registry[SwitchStroke].Color = Toggle.Value and "AccentColor" or "OutlineColor"
+end
 
             if Toggle.Disabled then
                 Label.TextTransparency = 0.8
