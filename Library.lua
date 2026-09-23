@@ -1690,7 +1690,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
             DragAllowed = false
             TouchCancelled = false
 
-            -- Cancel drag timer if finger moves (user is scrolling)
+            -- Cancel drag timer if finger moves before 3s (user is scrolling)
             MovedConnection = Input.Changed:Connect(function()
                 if Input.UserInputState == Enum.UserInputState.Change then
                     local Distance = (Input.Position - StartPos).Magnitude
@@ -1700,8 +1700,8 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
                 end
             end)
 
-            -- Require finger to stay still for 1 second before picking up tab
-            TouchHoldThread = task.delay(1, function()
+            -- Require finger to stay stationary for 3 seconds before picking up tab
+            TouchHoldThread = task.delay(3, function()
                 if not TouchCancelled then
                     DragAllowed = true
                 end
