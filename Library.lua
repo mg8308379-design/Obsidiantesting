@@ -7201,7 +7201,7 @@ FloatCloseBtn.MouseButton1Click:Connect(function()
         TabContainer.Visible = false
         FloatBottomBg.Visible = false
         FloatBottomBar.Visible = false
-        FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 48)
+        FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 47)
     else
         FloatTitleLine.Visible = true
         TabContainer.Visible = true
