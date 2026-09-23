@@ -2141,17 +2141,31 @@ function Library:OnUnload(Callback)
 end
 
 function Library:Unload()
+
+    -- Turn off every active toggle first
+    for Idx, Toggle in pairs(Toggles) do
+        if Toggle and Toggle.Value then
+            pcall(function()
+                Toggle:SetValue(false)
+            end)
+        end
+    end
+
+    -- Disconnect library connections
     for Index = #Library.Signals, 1, -1 do
         local Connection = table.remove(Library.Signals, Index)
+
         if Connection and Connection.Connected then
             Connection:Disconnect()
         end
     end
 
+    -- Run unload callbacks
     for _, Callback in Library.UnloadSignals do
         Library:SafeCallback(Callback)
     end
 
+    -- Destroy tooltips
     for _, Tooltip in Tooltips do
         Library:SafeCallback(Tooltip.Destroy, Tooltip)
     end
