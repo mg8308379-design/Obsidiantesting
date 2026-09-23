@@ -7154,6 +7154,9 @@ end
         TabContainer.Visible = true
         TabContainer.Position = UDim2.fromOffset(0, 49)
         TabContainer.Size = UDim2.new(1, -10, 1, -70)
+TabLeft.Position = UDim2.fromOffset(5, 0)
+TabLeft.Size = UDim2.new(0.5, -8, 1, 0)
+
 
         -- Make it draggable (title bar drag)
         Library:MakeDraggable(FloatFrame, FloatTopBar, true)
