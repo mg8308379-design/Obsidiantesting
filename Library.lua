@@ -1630,6 +1630,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
         ZIndex = 10,
         Parent = ScreenGui,
     })
+    
     table.insert(
         Library.Corners,
         New("UICorner", {
@@ -1637,6 +1638,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
             Parent = Button,
         })
     )
+    
     if not ExcludeScaling then
         table.insert(
             Library.Scales,
@@ -1645,20 +1647,47 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
             })
         )
     end
+    
     Library:AddOutline(Button)
 
     local DragThreshold = if ExcludeDragging then 0.25 else math.huge
+    local TouchHoldThread = nil
+    local TouchCancelled = false
+    local DragAllowed = false
+
     Button.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) then
             return
         end
 
         local Start = tick()
+        local IsTouch = (Input.UserInputType == Enum.UserInputType.Touch)
+
+        if (Library.IsMobile or IsTouch) and not ExcludeDragging then
+            DragAllowed = false
+            TouchCancelled = false
+            
+            -- Require a 1-second hold on mobile before allowing dragging
+            TouchHoldThread = task.delay(1, function()
+                if not TouchCancelled then
+                    DragAllowed = true
+                end
+            end)
+        else
+            DragAllowed = true
+        end
 
         local Changed
         Changed = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
                 return
+            end
+
+            -- Cancel the mobile hold timer if input ends early
+            TouchCancelled = true
+            if TouchHoldThread then
+                task.cancel(TouchHoldThread)
+                TouchHoldThread = nil
             end
 
             local IsLikelyDragging = tick() - Start > DragThreshold
@@ -1673,6 +1702,16 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
                 Changed = nil
             end
         end)
+    end)
+
+    Button.InputEnded:Connect(function(Input: InputObject)
+        if Input.UserInputType == Enum.UserInputType.Touch or Input.UserInputType == Enum.UserInputType.MouseButton1 then
+            TouchCancelled = true
+            if TouchHoldThread then
+                task.cancel(TouchHoldThread)
+                TouchHoldThread = nil
+            end
+        end
     end)
 
     Library:MakeDraggable(Button, Button, true)
