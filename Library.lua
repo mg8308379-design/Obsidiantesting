@@ -6771,14 +6771,27 @@ local function ReindexSide(Side)
     end
 
 
-    local function GetTabButtonDropTarget()
-        for _, Entry in Library.GroupboxDragTargets do
-            if Library:MouseIsOverFrame(Entry.Button, Mouse) then
-                return Entry
-            end
+local function GetTabButtonDropTarget()
+    for _, Entry in Library.GroupboxDragTargets do
+        -- Normal tab button
+        if Entry.Button
+            and Entry.Button.Parent
+            and Entry.Button.Visible
+            and Library:MouseIsOverFrame(Entry.Button, Mouse) then
+            return Entry
         end
-        return nil
+
+        -- Torn-off tab window
+        if Entry.TornOffFrame
+            and Entry.TornOffFrame.Parent
+            and Entry.TornOffFrame.Visible
+            and Library:MouseIsOverFrame(Entry.TornOffFrame, Mouse) then
+            return Entry
+        end
     end
+
+    return nil
+end
 
 local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRight, GroupboxName)
     local DragStartPos = nil
@@ -7261,7 +7274,7 @@ TabContainer.Size = UDim2.new(1, -10, 1, -70)
 -- This lets groupboxes from other tabs be dragged into this torn-off tab.
 for _, Entry in Library.GroupboxDragTargets do
     if Entry.TabName == TabName then
-        Entry.Button = FloatFrame
+        Entry.TornOffFrame = FloatFrame
         break
     end
 end
