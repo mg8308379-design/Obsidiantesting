@@ -7027,11 +7027,10 @@ end
         }))
         Library:AddOutline(FloatFrame)
 
-        -- Dividing line under title bar
-        Library:MakeLine(FloatFrame, {
-            Position = UDim2.fromOffset(0, 48),
-            Size = UDim2.new(1, 0, 0, 1),
-        })
+local FloatTitleLine = Library:MakeLine(FloatFrame, {
+    Position = UDim2.fromOffset(0, 48),
+    Size = UDim2.new(1, 0, 0, 1),
+})
 
         -- Title bar
         local FloatTopBar = New("Frame", {
@@ -7053,16 +7052,16 @@ end
         })
 
         -- "Dock" button in title bar
-        local DockBtn = New("TextButton", {
-            AnchorPoint = Vector2.new(1, 0.5),
-            BackgroundColor3 = "MainColor",
-            Position = UDim2.new(1, -46, 0.5, 0),
-            Size = UDim2.fromOffset(60, 24),
-            Text = "⇤ Dock",
-            TextSize = 13,
-            ZIndex = FloatFrame.ZIndex + 1,
-            Parent = FloatTopBar,
-        })
+local DockBtn = New("TextButton", {
+    AnchorPoint = Vector2.new(1, 0.5),
+    BackgroundColor3 = "MainColor",
+    Position = UDim2.new(1, -46, 0.5, 0),
+    Size = UDim2.fromOffset(52, 24),
+    Text = "Dock",
+    TextSize = 13,
+    ZIndex = FloatFrame.ZIndex + 1,
+    Parent = FloatTopBar,
+})
         table.insert(Library.Corners, New("UICorner", {
             CornerRadius = UDim.new(0, Library.CornerRadius / 2),
             Parent = DockBtn,
@@ -7200,11 +7199,13 @@ FloatCloseBtn.MouseButton1Click:Connect(function()
     FloatBottomBg.Visible = not IsMinimized
     FloatBottomBar.Visible = not IsMinimized
 
-    if IsMinimized then
-        FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 49)
-    else
-        FloatFrame.Size = NormalSize
-    end
+if IsMinimized then
+    FloatTitleLine.Visible = false
+    FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 49)
+else
+    FloatTitleLine.Visible = true
+    FloatFrame.Size = NormalSize
+end
 end)
 
         -- Re-dock on title bar drag: on InputEnded check if over MainFrame
