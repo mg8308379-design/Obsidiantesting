@@ -1202,7 +1202,13 @@ ParentUI(ScreenGui)
 Library.ScreenGui = ScreenGui
 
 ScreenGui.DescendantRemoving:Connect(function(Instance)
-    Library:RemoveFromRegistry(Instance)
+    task.defer(function()
+        if Instance and Instance.Parent then
+            return
+        end
+
+        Library:RemoveFromRegistry(Instance)
+    end)
 end)
 
 local ModalElement = New("TextButton", {
