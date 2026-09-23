@@ -1630,7 +1630,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
         ZIndex = 10,
         Parent = ScreenGui,
     })
-    
+
     table.insert(
         Library.Corners,
         New("UICorner", {
@@ -1638,7 +1638,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
             Parent = Button,
         })
     )
-    
+
     if not ExcludeScaling then
         table.insert(
             Library.Scales,
@@ -1647,7 +1647,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
             })
         )
     end
-    
+
     Library:AddOutline(Button)
 
     local DragThreshold = if ExcludeDragging then 0.25 else math.huge
@@ -1656,7 +1656,7 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
     local DragAllowed = false
 
     -- Minimum pixel movement before considering it a scroll/swipe attempt
-    local ScrollThreshold = 8 
+    local ScrollThreshold = 8
 
     Button.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) then
@@ -6864,10 +6864,32 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
             return
         end
 
-        if not IsDragging and (Input.Position - DragStartPos).Magnitude >= DragThreshold then
+                if not IsDragging then
+            local Distance = math.abs(Input.Position.Y - DragStartY)
+            local IsTouchLike = (Library.IsMobile or Input.UserInputType == Enum.UserInputType.Touch)
+
+            if IsTouchLike and not DragAllowed then
+                -- Still inside the hold window. If the finger is moving like a scroll,
+                -- cancel the hold so the ScrollingFrame gets the gesture instead.
+                if Distance > ScrollThreshold then
+                    TouchCancelled = true
+                    if TouchHoldThread then
+                        task.cancel(TouchHoldThread)
+                        TouchHoldThread = nil
+                    end
+                    DragStartY = nil
+                end
+                return
+            end
+
+            if Distance < DragThreshold then
+                return
+            end
+
             IsDragging = true
-            BoxHolder.BackgroundTransparency = 0.7
-            CreateGroupboxGhost()
+            DraggingButton = Button
+            Button.BackgroundTransparency = 0.7
+            CreateGhost()
         end
 
         if not IsDragging then return end
@@ -7360,7 +7382,9 @@ local function SetupTabDrag(Button)
     local DragStartY = nil
     local IsDragging = false
     local DragThreshold = 6
-
+    local DragAllowed = false
+    local TouchHoldThread = nil
+    local TouchCancelled = false
     local GhostClone = nil
     local DropLine = nil
     local TearOffLabel = nil  -- small floating label near cursor when outside
@@ -7501,6 +7525,27 @@ local function SetupTabDrag(Button)
         end
         DragStartY = Input.Position.Y
         IsDragging = false
+
+        local IsTouch = (Input.UserInputType == Enum.UserInputType.Touch)
+
+        if Library.IsMobile or IsTouch then
+            DragAllowed = false
+            TouchCancelled = false
+
+            if TouchHoldThread then
+                task.cancel(TouchHoldThread)
+                TouchHoldThread = nil
+            end
+
+            -- Require finger to stay stationary for 3 seconds before drag/tear-off is armed
+            TouchHoldThread = task.delay(3, function()
+                if not TouchCancelled then
+                    DragAllowed = true
+                end
+            end)
+        else
+            DragAllowed = true
+        end
     end)
 
     UserInputService.InputChanged:Connect(function(Input)
@@ -7589,12 +7634,19 @@ local function SetupTabDrag(Button)
         if TargetOrder == nil then return end
         Button.LayoutOrder = TargetOrder
     end)
-
     Button.InputEnded:Connect(function(Input)
         if Input.UserInputType ~= Enum.UserInputType.MouseButton1
             and Input.UserInputType ~= Enum.UserInputType.Touch then
             return
         end
+
+        -- Always clear the hold-timer state on release, whether or not a drag happened
+        TouchCancelled = true
+        if TouchHoldThread then
+            task.cancel(TouchHoldThread)
+            TouchHoldThread = nil
+        end
+        DragAllowed = false
 
         if IsDragging then
             IsDragging = false
