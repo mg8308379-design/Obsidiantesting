@@ -7031,8 +7031,8 @@ local FloatTitleLine = Library:MakeLine(FloatTopBar, {
     AnchorPoint = Vector2.new(0, 1),
     Position = UDim2.new(0, 0, 1, 0),
     Size = UDim2.new(1, 0, 0, 1),
+    ZIndex = FloatFrame.ZIndex,
 })
-
         -- Title bar
         local FloatTopBar = New("Frame", {
             BackgroundTransparency = 1,
