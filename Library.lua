@@ -9,7 +9,7 @@ local UserInputService: UserInputService = cloneref(game:GetService("UserInputSe
 local TextService: TextService = cloneref(game:GetService("TextService"))
 local Teams: Teams = cloneref(game:GetService("Teams"))
 local TweenService: TweenService = cloneref(game:GetService("TweenService"))
- 
+
 local getgenv = getgenv or function()
     return shared
 end
@@ -8017,8 +8017,7 @@ local SavedGroupboxOrder = LoadGroupboxOrder()
             Parent = BottomBar,
         })
 
-local LocalVersion = "1.3.0"
-
+local LocalVersion = tostring(_G.ScriptVersion or "v0.0.0"):gsub("^v", "")
 
         -- Status Circle
 local StatusCircle = New("Frame", {
