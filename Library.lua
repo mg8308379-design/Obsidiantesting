@@ -6957,11 +6957,13 @@ end
         torn.Button.Visible = true
         torn.Button.BackgroundTransparency = 1
 
-        -- If this tab was active before tear-off, show it again
-        -- Otherwise just leave the current active tab
-        if Library.ActiveTab == nil then
-            torn.Tab:Show()
-        end
+-- Only show the docked tab if there is no active tab.
+-- Otherwise keep the current tab visible and hide this one.
+if Library.ActiveTab == nil then
+    torn.Tab:Show()
+else
+    torn.TabContainer.Visible = false
+end
 
         -- Destroy the floating window
         if torn.FloatGui and torn.FloatGui.Parent then
