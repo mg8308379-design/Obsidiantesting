@@ -8017,7 +8017,7 @@ local SavedGroupboxOrder = LoadGroupboxOrder()
             Parent = BottomBar,
         })
 
-local LocalVersion = "1.2.5"
+local LocalVersion = "1.3.0"
 
 
         -- Status Circle
