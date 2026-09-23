@@ -4191,10 +4191,12 @@ do
                 Ball.AnchorPoint = Vector2.new(Offset, 0)
                 Ball.Position = UDim2.fromScale(Offset, 0)
 
-                Ball.BackgroundColor3 = Library:GetDarkerColor(Library.Scheme.FontColor)
-                Library.Registry[Ball].BackgroundColor3 = function()
-                    return Library:GetDarkerColor(Library.Scheme.FontColor)
-                end
+Ball.BackgroundColor3 = Library:GetDarkerColor(Library.Scheme.FontColor)
+
+Library.Registry[Ball] = Library.Registry[Ball] or {}
+Library.Registry[Ball].BackgroundColor3 = function()
+    return Library:GetDarkerColor(Library.Scheme.FontColor)
+end
 
                 return
             end
@@ -4207,8 +4209,10 @@ do
                 Position = UDim2.fromScale(Offset, 0),
             }):Play()
 
-            Ball.BackgroundColor3 = Library.Scheme.FontColor
-            Library.Registry[Ball].BackgroundColor3 = "FontColor"
+Ball.BackgroundColor3 = Library.Scheme.FontColor
+
+Library.Registry[Ball] = Library.Registry[Ball] or {}
+Library.Registry[Ball].BackgroundColor3 = "FontColor"
         end
 
         function Toggle:OnChanged(Func)
