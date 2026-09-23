@@ -7027,8 +7027,9 @@ local FloatFrame = New("TextButton", {
         }))
         Library:AddOutline(FloatFrame)
 
-local FloatTitleLine = Library:MakeLine(FloatFrame, {
-    Position = UDim2.fromOffset(0, 49),
+local FloatTitleLine = Library:MakeLine(FloatTopBar, {
+    AnchorPoint = Vector2.new(0, 1),
+    Position = UDim2.new(0, 0, 1, 0),
     Size = UDim2.new(1, 0, 0, 1),
 })
 
