@@ -8129,7 +8129,7 @@ UpdateButton.MouseButton1Click:Connect(function()
                 Order = 2,
                 Callback = function()
                     Library:Unload()
-                    loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/87203f9d714db3fcb08dbe836a081bb3.lua"))()
+                    loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/7f4c9b056ecd55df7bd4721a04b217ff.lua"))()
                 end
             }
         }
