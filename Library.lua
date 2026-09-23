@@ -7003,21 +7003,21 @@ end
 
         -- Floating window frame — same styling as MainFrame
         local mousePos = UserInputService:GetMouseLocation()
-        local FloatFrame = New("TextButton", {
-            BackgroundColor3 = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
-            end,
-            Name = "TearOffMain_" .. TabName,
-            Text = "",
-            AutoButtonColor = false,
-            Position = UDim2.fromOffset(
-                math.clamp(mousePos.X - 290, 6, workspace.CurrentCamera.ViewportSize.X - 586),
-                math.clamp(mousePos.Y - 24, 6, workspace.CurrentCamera.ViewportSize.Y - 406)
-            ),
-            Size = UDim2.fromOffset(580, 400),
-            ClipsDescendants = false,
-            Parent = FloatGui,
-        })
+local FloatFrame = New("TextButton", {
+    BackgroundColor3 = function()
+        return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
+    end,
+    Name = "TearOffMain_" .. TabName,
+    Text = "",
+    AutoButtonColor = false,
+    Position = UDim2.fromOffset(
+        math.clamp(mousePos.X - 290, 6, workspace.CurrentCamera.ViewportSize.X - 586),
+        math.clamp(mousePos.Y - 24, 6, workspace.CurrentCamera.ViewportSize.Y - 406)
+    ),
+    Size = UDim2.fromOffset(580, 400),
+    ClipsDescendants = true,
+    Parent = FloatGui,
+})
         table.insert(Library.Corners, New("UICorner", {
             CornerRadius = UDim.new(0, Library.CornerRadius),
             Parent = FloatFrame,
@@ -7170,7 +7170,7 @@ TabContainer.Position = UDim2.fromOffset(5, 49)
 TabContainer.Size = UDim2.new(1, -10, 1, -70)
 
 
-        
+
         -- Make it draggable (title bar drag)
         Library:MakeDraggable(FloatFrame, FloatTopBar, true)
 
@@ -7201,7 +7201,7 @@ FloatCloseBtn.MouseButton1Click:Connect(function()
 
 if IsMinimized then
     FloatTitleLine.Visible = false
-    FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 49)
+    FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 48)
 else
     FloatTitleLine.Visible = true
     FloatFrame.Size = NormalSize
