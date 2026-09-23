@@ -7027,18 +7027,18 @@ local FloatFrame = New("TextButton", {
         }))
         Library:AddOutline(FloatFrame)
 
-local FloatTitleLine = Library:MakeLine(FloatTopBar, {
-    AnchorPoint = Vector2.new(0, 1),
-    Position = UDim2.new(0, 0, 1, 0),
-    Size = UDim2.new(1, 0, 0, 1),
-    ZIndex = FloatFrame.ZIndex,
-})
         -- Title bar
         local FloatTopBar = New("Frame", {
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 48),
             Parent = FloatFrame,
         })
+
+local FloatTitleLine = Library:MakeLine(FloatFrame, {
+    Position = UDim2.fromOffset(0, 48),
+    Size = UDim2.new(1, 0, 0, 1),
+    ZIndex = FloatFrame.ZIndex,
+})
 
         -- Tab name label
         local FloatTitleLabel = New("TextLabel", {
@@ -7196,17 +7196,19 @@ local NormalSize = FloatFrame.Size
 FloatCloseBtn.MouseButton1Click:Connect(function()
     IsMinimized = not IsMinimized
 
-    TabContainer.Visible = not IsMinimized
-    FloatBottomBg.Visible = not IsMinimized
-    FloatBottomBar.Visible = not IsMinimized
-
-if IsMinimized then
-    FloatTitleLine.Visible = false
-    FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 49)
-else
-    FloatTitleLine.Visible = true
-    FloatFrame.Size = NormalSize
-end
+    if IsMinimized then
+        FloatTitleLine.Visible = false
+        TabContainer.Visible = false
+        FloatBottomBg.Visible = false
+        FloatBottomBar.Visible = false
+        FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 48)
+    else
+        FloatTitleLine.Visible = true
+        TabContainer.Visible = true
+        FloatBottomBg.Visible = true
+        FloatBottomBar.Visible = true
+        FloatFrame.Size = NormalSize
+    end
 end)
 
         -- Re-dock on title bar drag: on InputEnded check if over MainFrame
