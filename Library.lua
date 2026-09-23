@@ -1655,19 +1655,52 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
     local TouchCancelled = false
     local DragAllowed = false
 
+    -- Minimum pixel movement before considering it a scroll/swipe attempt
+    local ScrollThreshold = 8 
+
     Button.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) then
             return
         end
 
-        local Start = tick()
+        local StartTime = tick()
+        local StartPos = Input.Position
         local IsTouch = (Input.UserInputType == Enum.UserInputType.Touch)
+
+        local ChangedConnection
+        local MovedConnection
+
+        local function CleanupConnections()
+            TouchCancelled = true
+            if TouchHoldThread then
+                task.cancel(TouchHoldThread)
+                TouchHoldThread = nil
+            end
+            if ChangedConnection then
+                ChangedConnection:Disconnect()
+                ChangedConnection = nil
+            end
+            if MovedConnection then
+                MovedConnection:Disconnect()
+                MovedConnection = nil
+            end
+        end
 
         if (Library.IsMobile or IsTouch) and not ExcludeDragging then
             DragAllowed = false
             TouchCancelled = false
-            
-            -- Require a 1-second hold on mobile before allowing dragging
+
+            -- Cancel drag timer if finger moves (user is scrolling)
+            MovedConnection = Input.Changed:Connect(function()
+                if Input.UserInputState == Enum.UserInputState.Change then
+                    local Distance = (Input.Position - StartPos).Magnitude
+                    if Distance > ScrollThreshold and not DragAllowed then
+                        CleanupConnections()
+                    end
+                end
+            end)
+
+            -- Require finger to stay still for 1 second before picking up tab
             TouchHoldThread = task.delay(1, function()
                 if not TouchCancelled then
                     DragAllowed = true
@@ -1677,41 +1710,21 @@ function Library:AddDraggableButton(Text: string, Func, ExcludeScaling: boolean?
             DragAllowed = true
         end
 
-        local Changed
-        Changed = Input.Changed:Connect(function()
+        ChangedConnection = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
                 return
             end
 
-            -- Cancel the mobile hold timer if input ends early
-            TouchCancelled = true
-            if TouchHoldThread then
-                task.cancel(TouchHoldThread)
-                TouchHoldThread = nil
-            end
+            local IsLikelyDragging = (tick() - StartTime > DragThreshold) or DragAllowed
 
-            local IsLikelyDragging = tick() - Start > DragThreshold
+            CleanupConnections()
+
             if IsLikelyDragging then
                 return
             end
 
             Library:SafeCallback(Func, Table)
-
-            if Changed and Changed.Connected then
-                Changed:Disconnect()
-                Changed = nil
-            end
         end)
-    end)
-
-    Button.InputEnded:Connect(function(Input: InputObject)
-        if Input.UserInputType == Enum.UserInputType.Touch or Input.UserInputType == Enum.UserInputType.MouseButton1 then
-            TouchCancelled = true
-            if TouchHoldThread then
-                task.cancel(TouchHoldThread)
-                TouchHoldThread = nil
-            end
-        end
     end)
 
     Library:MakeDraggable(Button, Button, true)
