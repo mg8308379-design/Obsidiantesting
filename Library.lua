@@ -7253,15 +7253,20 @@ FloatCloseBtn.MouseButton1Click:Connect(function()
     IsMinimized = not IsMinimized
 
     if IsMinimized then
+        -- Capture the CURRENT size (which may have been resized by the user)
+        -- right before shrinking, so restoring uses the latest size, not the
+        -- size from when the tab was originally torn off.
+        NormalSize = FloatFrame.Size
+
         FloatTitleLine.Visible = false
-        FloatBottomLine.Visible = false   -- ADD THIS
+        FloatBottomLine.Visible = false
         TabContainer.Visible = false
         FloatBottomBg.Visible = false
         FloatBottomBar.Visible = false
         FloatFrame.Size = UDim2.new(NormalSize.X.Scale, NormalSize.X.Offset, 0, 47)
     else
         FloatTitleLine.Visible = true
-        FloatBottomLine.Visible = true    -- ADD THIS
+        FloatBottomLine.Visible = true
         TabContainer.Visible = true
         FloatBottomBg.Visible = true
         FloatBottomBar.Visible = true
