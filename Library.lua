@@ -7626,11 +7626,15 @@ local function SetupTabDrag(Button)
         local MouseX = Input.Position.X
         local MouseY = Input.Position.Y
 
-        -- Move ghost with cursor
+        -- Move ghost with cursor, but keep it inside the sidebar
         if GhostClone then
+            local MinY = Tabs.AbsolutePosition.Y
+            local MaxY = Tabs.AbsolutePosition.Y + Tabs.AbsoluteSize.Y - Button.AbsoluteSize.Y
+            local GhostY = math.clamp(MouseY - Button.AbsoluteSize.Y / 2, MinY, math.max(MinY, MaxY))
+
             GhostClone.Position = UDim2.fromOffset(
                 Button.AbsolutePosition.X,
-                MouseY - Button.AbsoluteSize.Y / 2
+                GhostY
             )
         end
 
