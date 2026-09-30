@@ -12263,22 +12263,13 @@ end
 
 game:GetService("UserInputService").InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.MouseButton2 then
+        or input.UserInputType == Enum.UserInputType.MouseButton2
+        or input.UserInputType == Enum.UserInputType.Touch then
         if ActiveContextMenu then
-            local mousePos = game:GetService("UserInputService"):GetMouseLocation()
+            local p = Vector2.new(input.Position.X, input.Position.Y)
             local absPos = ActiveContextMenu.AbsolutePosition
             local absSize = ActiveContextMenu.AbsoluteSize
-            if not (mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y) then
-                CloseContextMenu()
-            end
-        end
-    end
-    if input.UserInputType == Enum.UserInputType.Touch then
-        if ActiveContextMenu then
-            local mousePos = game:GetService("UserInputService"):GetMouseLocation()
-            local absPos = ActiveContextMenu.AbsolutePosition
-            local absSize = ActiveContextMenu.AbsoluteSize
-            if not (mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y) then
+            if not (p.X >= absPos.X and p.X <= absPos.X + absSize.X and p.Y >= absPos.Y and p.Y <= absPos.Y + absSize.Y) then
                 CloseContextMenu()
             end
         end
