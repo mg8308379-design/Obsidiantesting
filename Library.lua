@@ -6915,12 +6915,34 @@ local function SetupGroupboxDrag(BoxHolder, DragHandle, TabName, TabLeft, TabRig
         local MouseX = Mouse.X
         local MouseY = Mouse.Y
 
-        -- Move ghost with mouse
+        -- Move ghost with mouse, but keep it inside the main UI
+        -- (or inside a torn-off window if the mouse is over one)
         if GhostClone then
-            GhostClone.Position = UDim2.fromOffset(
-                MouseX - GhostClone.AbsoluteSize.X / 2,
-                MouseY - 17
-            )
+            local MouseVec = Vector2.new(MouseX, MouseY)
+            local BoundsFrame = MainFrame
+
+            if not Library:MouseIsOverFrame(MainFrame, MouseVec) then
+                for _, Entry in Library.GroupboxDragTargets do
+                    local B = Entry.Button
+                    if B and B.Parent
+                        and B.Name:find("TearOffMain_", 1, true)
+                        and Library:MouseIsOverFrame(B, MouseVec) then
+                        BoundsFrame = B
+                        break
+                    end
+                end
+            end
+
+            local GhostSize = GhostClone.AbsoluteSize
+            local MinX = BoundsFrame.AbsolutePosition.X
+            local MinY = BoundsFrame.AbsolutePosition.Y
+            local MaxX = MinX + BoundsFrame.AbsoluteSize.X - GhostSize.X
+            local MaxY = MinY + BoundsFrame.AbsoluteSize.Y - GhostSize.Y
+
+            local GhostX = math.clamp(MouseX - GhostSize.X / 2, MinX, math.max(MinX, MaxX))
+            local GhostY = math.clamp(MouseY - 17, MinY, math.max(MinY, MaxY))
+
+            GhostClone.Position = UDim2.fromOffset(GhostX, GhostY)
         end
 
         -- Determine which side the mouse is over (based on the groupbox's CURRENT tab)
