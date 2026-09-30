@@ -1393,7 +1393,6 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
     local FramePos
     local Dragging = false
     local Changed
-
     DragFrame.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
             return
@@ -1415,7 +1414,6 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
             end
         end)
     end)
-
     Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input: InputObject)
         if
             (not IgnoreToggled and not Library.Toggled)
@@ -1433,22 +1431,8 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
 
         if Dragging and IsHoverInput(Input) then
             local Delta = Input.Position - StartPos
-            local NewX = FramePos.X.Offset + Delta.X
-            local NewY = FramePos.Y.Offset + Delta.Y
-
-            if IsMainWindow and ScreenGui then
-                -- Clamp main window inside ScreenGui bounds so it can't leave the screen/UI
-                local ViewportSize = workspace.CurrentCamera.ViewportSize
-                local AbsSize = UI.AbsoluteSize
-
-                local MinX, MaxX = 0, ViewportSize.X - AbsSize.X
-                local MinY, MaxY = 0, ViewportSize.Y - AbsSize.Y
-
-                NewX = math.clamp(NewX, MinX, MaxX)
-                NewY = math.clamp(NewY, MinY, MaxY)
-            end
-
-            UI.Position = UDim2.new(FramePos.X.Scale, NewX, FramePos.Y.Scale, NewY)
+            UI.Position =
+                UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
         end
     end))
 end
