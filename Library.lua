@@ -12393,13 +12393,31 @@ end)
 
     local LastMessageTime = 0
     local SpamCooldown = 2
-local BannedWords = {"sex", "dick", "pussy", "nigger", "nigga", "fanny"}
+local BannedWords = {
+    "sex",
+    "dick",
+    "pussy",
+    "nigger",
+    "nigga",
+    "fanny",
+    "nig3a",
+    "nig3r",
+    "loadstring",
+    "https",
+    "pastefy"
+}
 
 local function ContainsBannedWord(Msg)
+    if type(Msg) ~= "string" then return false end
+
     local Lower = Msg:lower()
+
     for _, Word in ipairs(BannedWords) do
-        if Lower:find(Word:lower(), 1, true) then return true end
+        if Lower:find(Word:lower(), 1, true) then
+            return true
+        end
     end
+
     return false
 end
 
@@ -12448,8 +12466,15 @@ local function FormatDiscordTime(isoTimeStr)
 end
 
     local MsgIndex = 0
-    local function AddMessage(sender, text, isSystem, senderUserId, messageId, replyData, reactions, customSignature, msgTime)
-        local msgIdStr = messageId or tostring(math.random(1000,9999))
+local function AddMessage(sender, text, isSystem, senderUserId, messageId, replyData, reactions, customSignature, msgTime)
+
+    -- Never render messages containing a banned word.
+    -- This also catches messages that existed before the word was added.
+    if not isSystem and ContainsBannedWord(text) then
+        return nil
+    end
+
+    local msgIdStr = messageId or tostring(math.random(1000,9999))
 
         if ActiveMessageRows[msgIdStr] then
             if ActiveMessageRows[msgIdStr].UpdateReactions then
@@ -12984,6 +13009,9 @@ end)
         RenderReactions(currentRowReactions)
 
         ActiveMessageRows[msgIdStr] = {
+
+                Row = Row,
+    Text = tostring(text),
             SetHighlight = SetRowHighlight,
             HideActionBar = function()
                 actionBarShown = false
@@ -13138,6 +13166,17 @@ if ContainsBannedWord(Msg) then AddMessage("System", "Your message contains a bl
     end
 
 local function FetchMessages()
+
+        -- Remove already-rendered messages that are now banned.
+    for msgId, rowData in pairs(ActiveMessageRows) do
+        if rowData.Text and ContainsBannedWord(rowData.Text) then
+            if rowData.Row and rowData.Row.Parent then
+                rowData.Row:Destroy()
+            end
+
+            ActiveMessageRows[msgId] = nil
+        end
+    end
         pcall(function()
             if HttpRequest then
                 local Result = HttpRequest({
