@@ -12465,6 +12465,95 @@ local function FormatDiscordTime(isoTimeStr)
     end
 end
 
+local TranslateService = game:GetService("HttpService")
+
+local function translateToEnglish(text)
+    if not text or text == "" then return "" end
+
+    local encodedText = TranslateService:UrlEncode(text)
+
+    local function fetch(url)
+        for attempt = 1, 2 do
+            local ok, res = pcall(function()
+                if HttpRequest then
+                    local r = HttpRequest({ Url = url, Method = "GET" })
+                    if r and (r.StatusCode == nil or r.StatusCode == 200) then
+                        return r.Body
+                    end
+                    return nil
+                end
+                return game:HttpGet(url)
+            end)
+            if ok and res then return res end
+            task.wait(0.4)
+        end
+        return nil
+    end
+
+    -- Guess the source language from the script (only used for the MyMemory fallback)
+    local function guessLang(str)
+        for _, cp in utf8.codes(str, true) do
+            if cp >= 0x0400 and cp <= 0x04FF then return "ru" end
+            if cp >= 0x3040 and cp <= 0x30FF then return "ja" end
+            if cp >= 0xAC00 and cp <= 0xD7AF then return "ko" end
+            if cp >= 0x4E00 and cp <= 0x9FFF then return "zh-CN" end
+            if cp >= 0x0600 and cp <= 0x06FF then return "ar" end
+            if cp >= 0x0E00 and cp <= 0x0E7F then return "th" end
+            if cp >= 0x0590 and cp <= 0x05FF then return "he" end
+        end
+        return nil
+    end
+
+    -- API 1: Google Translate (auto-detect, any language)
+    local googleUrl = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" .. encodedText
+    local body = fetch(googleUrl)
+    if body then
+        local ok, data = pcall(function() return TranslateService:JSONDecode(body) end)
+        if ok and type(data) == "table" and type(data[1]) == "table" then
+            local out = {}
+            for _, seg in ipairs(data[1]) do
+                if type(seg) == "table" and type(seg[1]) == "string" then
+                    table.insert(out, seg[1])
+                end
+            end
+            if #out > 0 then return table.concat(out) end
+        end
+    end
+
+    -- API 2: second Google endpoint (different rate limit)
+    local googleUrl2 = "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=en&q=" .. encodedText
+    local bodyB = fetch(googleUrl2)
+    if bodyB then
+        local ok, data = pcall(function() return TranslateService:JSONDecode(bodyB) end)
+        if ok and type(data) == "table" then
+            local first = data[1]
+            if type(first) == "table" and type(first[1]) == "string" then
+                return first[1]
+            elseif type(first) == "string" then
+                return first
+            end
+        end
+    end
+
+    -- API 3: MyMemory (needs a real source language, so only if we can guess one)
+    local lang = guessLang(text)
+    if lang then
+        local myMemoryUrl = "https://api.mymemory.translated.net/get?q=" .. encodedText .. "&langpair=" .. lang .. "|en"
+        local body2 = fetch(myMemoryUrl)
+        if body2 then
+            local ok, data = pcall(function() return TranslateService:JSONDecode(body2) end)
+            if ok and data and data.responseData and type(data.responseData.translatedText) == "string" then
+                local t = data.responseData.translatedText
+                if not t:upper():find("PLEASE SELECT") and not t:upper():find("INVALID") then
+                    return t
+                end
+            end
+        end
+    end
+
+    return text -- final fallback: show the original
+end
+
     local MsgIndex = 0
 local function AddMessage(sender, text, isSystem, senderUserId, messageId, replyData, reactions, customSignature, msgTime)
 
@@ -12507,7 +12596,7 @@ local function AddMessage(sender, text, isSystem, senderUserId, messageId, reply
 
         local btnWidth = isMobile and 44 or 28
         local barHeight = isMobile and 36 or 24
-        local barWidth = btnWidth * 3
+        local barWidth = btnWidth * 4
 
         local ActionBar = New("Frame", {
             AnchorPoint = Vector2.new(1, 0),
@@ -12547,6 +12636,17 @@ local function AddMessage(sender, text, isSystem, senderUserId, messageId, reply
             Position = UDim2.new(0, btnWidth * 2, 0, 0),
             Size = UDim2.new(0, btnWidth, 1, 0),
             Text = "🗑️",
+            TextColor3 = Color3.fromRGB(200, 200, 200),
+            TextSize = isMobile and 14 or 11,
+            ZIndex = 511,
+            Parent = ActionBar,
+        })
+
+        local TranslateBtn = New("TextButton", {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, btnWidth * 3, 0, 0),
+            Size = UDim2.new(0, btnWidth, 1, 0),
+            Text = "📻",
             TextColor3 = Color3.fromRGB(200, 200, 200),
             TextSize = isMobile and 14 or 11,
             ZIndex = 511,
@@ -12942,6 +13042,51 @@ end)
             Parent = ContentLayout,
         })
         table.insert(MessageBodyLabels, MsgBodyLabel)
+        -- 📻 Translate (local only, only changes YOUR screen)
+        local originalText = text
+        local translatedText = nil
+        local showingTranslation = false
+        local isTranslating = false
+
+        TranslateBtn.MouseButton1Click:Connect(function()
+            if isTranslating then return end
+
+            -- Toggle back to the original
+            if showingTranslation then
+                showingTranslation = false
+                MsgBodyLabel.Text = originalText
+                TranslateBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+                return
+            end
+
+            -- Use the cached translation if we already have it
+            if translatedText then
+                showingTranslation = true
+                MsgBodyLabel.Text = translatedText
+                TranslateBtn.TextColor3 = Color3.fromRGB(88, 101, 242)
+                return
+            end
+
+            isTranslating = true
+            MsgBodyLabel.Text = "Translating..."
+            task.spawn(function()
+                local result = translateToEnglish(originalText)
+                translatedText = result
+                isTranslating = false
+                if MsgBodyLabel and MsgBodyLabel.Parent then
+                    showingTranslation = true
+                    MsgBodyLabel.Text = translatedText
+                    TranslateBtn.TextColor3 = Color3.fromRGB(88, 101, 242)
+                end
+            end)
+        end)
+
+        -- Mobile: stop the row tap handler from toggling the bar when you press this button
+        TranslateBtn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                touchStartedOnButton = true
+            end
+        end)
 
         local reactionContainer = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.XY,
