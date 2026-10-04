@@ -10380,6 +10380,7 @@ do
     local ReplyTarget = nil
     local NicknameTarget = nil
     local MuteDurationTarget = nil
+    local BanTarget = nil
     local ActiveMessageRows = {}
 local DeniedInviteIds = {}
     local MutedUsernamesMap = {}
@@ -11833,13 +11834,16 @@ end)
             SendBtn.Active = true
             SendBtn.BackgroundColor3 = Library.Scheme.AccentColor
 
-            if NicknameTarget then
-                ChatInput.PlaceholderText = "Type nickname for " .. GetDisplayName(NicknameTarget) .. " here"
-                SendBtn.Text = "Set"
-            elseif MuteDurationTarget then
-                ChatInput.PlaceholderText = "Type time. Example : 1d 1h 1m 1s"
-                SendBtn.Text = "Mute"
-            else
+if NicknameTarget then
+    ChatInput.PlaceholderText = "Type nickname for " .. GetDisplayName(NicknameTarget) .. " here"
+    SendBtn.Text = "Set"
+elseif MuteDurationTarget then
+    ChatInput.PlaceholderText = "Type time. Example : 1d 1h 1m 1s"
+    SendBtn.Text = "Mute"
+elseif BanTarget then
+    ChatInput.PlaceholderText = "Type duration + reason. Example: 1d Spamming"
+    SendBtn.Text = "Ban"
+else
                 SendBtn.Text = "Send"
                 if not ReplyTarget then
                     ChatInput.PlaceholderText = "Send a message..."
@@ -11887,7 +11891,6 @@ local function SendGameInviteToVPS(invitedUser)
 
         local currentJobId = game.JobId
         if not currentJobId or currentJobId == "" then
-            warn("Invite failed: JobId is still empty after waiting.")
             Library:Notify({ Title = "Invite Failed", Description = "Server still loading. Try again.", Time = 2 })
             return
         end
@@ -11911,9 +11914,7 @@ local function SendGameInviteToVPS(invitedUser)
         end)
 
         if success then
-            print("Invite sent successfully on first click!")
         else
-            warn("Invite HTTP Error:", response)
         end
     end)
 end
@@ -12277,6 +12278,17 @@ end)
         else
             CreateMenuOption("Mute User", Color3.fromRGB(255, 60, 60), function()
                 MuteDurationTarget = targetUser
+                BanTarget = nil
+                NicknameTarget = nil
+                ReplyTarget = nil
+                ChatInput.Text = ""
+                UpdateInputLayout()
+                ChatInput:CaptureFocus()
+            end)
+
+            CreateMenuOption("Ban User", Color3.fromRGB(255, 60, 60), function()
+                BanTarget = targetUser
+                MuteDurationTarget = nil
                 NicknameTarget = nil
                 ReplyTarget = nil
                 ChatInput.Text = ""
@@ -12286,7 +12298,6 @@ end)
         end
     end
 end
-
 game:GetService("UserInputService").InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.MouseButton2
@@ -13235,7 +13246,57 @@ end)
             UpdateInputLayout()
             return
         end
+        if BanTarget then
+            local input = ChatInput.Text:gsub("^%s+", ""):gsub("%s+$", "")
 
+            if input == "" then
+                return
+            end
+
+            -- First word = duration, everything after = reason
+            local duration, reason = input:match("^(%S+)%s+(.+)$")
+
+            if not duration or not reason then
+                return
+            end
+
+            local payload = {
+                Username = LocalPlayer.Name,
+                UserId = tostring(LocalPlayer.UserId),
+                Roles = {"user"},
+                Message = reason,
+                MessageId = "ban_" .. math.random(100000, 999999),
+                Time = os.time(),
+
+                BanUsername = BanTarget,
+                BanDuration = duration,
+                BanReason = reason,
+                BanUser = BanTarget
+            }
+
+            if HttpRequest then
+                task.spawn(function()
+                    pcall(function()
+                        HttpRequest({
+                            Url = "http://167.99.144.89:8081/chatbox",
+                            Method = "POST",
+                            Headers = {
+                                ["Content-Type"] = "application/json",
+                                ["Authorization"] = "Bearer " .. (_G.ChatboxSecretKey or "")
+                            },
+                            Body = game:GetService("HttpService"):JSONEncode(payload)
+                        })
+                    end)
+                end)
+            else
+                return
+            end
+
+            BanTarget = nil
+            ChatInput.Text = ""
+            UpdateInputLayout()
+            return
+        end
         local Msg = ChatInput.Text
         if not Msg or Msg:gsub("%s", "") == "" then return end
 
@@ -13572,8 +13633,106 @@ ChatTabButton.MouseButton1Click:Connect(function()
     end
 end)
     Window.ChatAddMessage = AddMessage
-end
 
+
+    -- Automatic local-player ban checker
+task.spawn(function()
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+
+    while true do
+        task.wait(2)
+
+        if not HttpRequest or not LocalPlayer then
+            continue
+        end
+
+        local success, response = pcall(function()
+            return HttpRequest({
+                Url = "http://167.99.144.89:8081/chatbox/bancheck?username="
+                    .. HttpService:UrlEncode(LocalPlayer.Name),
+
+                Method = "GET",
+
+                Headers = {
+                    ["Authorization"] =
+                        "Bearer " .. (_G.ChatboxSecretKey or "")
+                }
+            })
+        end)
+
+        if not success then
+            continue
+        end
+
+        if not response then
+            continue
+        end
+
+        local body = response.Body or response.body
+
+        if not body then
+            continue
+        end
+
+
+        local decodedSuccess, data = pcall(function()
+            return HttpService:JSONDecode(body)
+        end)
+
+        if not decodedSuccess then
+            continue
+        end
+
+        if type(data) ~= "table" then
+            continue
+        end
+
+
+        if data.banned == true then
+            local reason = tostring(data.reason or "No reason specified")
+
+            local banTime
+
+            if data.permanent == true then
+                banTime = "Permanent"
+            elseif data.remainingSeconds ~= nil then
+                banTime = FormatDuration(
+                    tonumber(data.remainingSeconds) or 0
+                )
+            else
+                banTime = tostring(data.length or "Unknown")
+            end
+
+            local kickMessage =
+                "You are banned.\n\n"
+                .. "Reason: " .. reason
+                .. "\nTime remaining: " .. banTime
+
+
+            -- Kick immediately
+            pcall(function()
+                LocalPlayer:Kick(kickMessage)
+            end)
+
+            -- Wait 3 seconds after the kick
+            task.wait(3)
+
+            -- Shut down the current client session
+
+            pcall(function()
+                game:Shutdown()
+            end)
+
+            -- Stop polling
+            break
+        end
+    end
+end)
+
+
+end
 
 
 ------ end of chatbox
@@ -13581,6 +13740,7 @@ end
     --testing388811111
     return Window
 end
+
 
 
 
