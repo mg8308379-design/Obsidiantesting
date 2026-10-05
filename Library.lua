@@ -13337,7 +13337,7 @@ end)
             end
         end
 
-        if #Msg > 100 then AddMessage("System", "Message too long.", true); return end
+                if #Msg > 500 then AddMessage("System", "Message too long max 500 char.", true); return end
 if tick() - LastMessageTime < SpamCooldown then AddMessage("System", "Slow down.", true); return end
 if ContainsBannedWord(Msg) then AddMessage("System", "Your message contains a blocked word.", true); return end
 
