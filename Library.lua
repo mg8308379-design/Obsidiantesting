@@ -10372,8 +10372,7 @@ end
 
 
 
--- CHATBOX WINDOW_2.lua
--- CHATBOX WINDOW_2.lua
+-- start of chatbox
 do
         local ChatOpen = false
     local ChatMessages = {}
@@ -11576,9 +11575,9 @@ end)
         BackgroundColor3 = Color3.fromRGB(50, 52, 58),
         Position = UDim2.new(1, -4, 0.5, 0),
         Size = UDim2.fromOffset(16, 16),
-        Text = "✕",
+        Text = "X",
         TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextSize = 10,
+        TextSize = 11,
         ZIndex = 504,
         Parent = ReplyBanner,
     })
@@ -11809,10 +11808,11 @@ end)
             MentionMenu.Position = UDim2.new(0, 8, 1, -50)
         end
 
-        if ReplyTarget then
-            ReplyBanner.Visible = true
-            ReplyBanner.Position = UDim2.new(0, 8, 0, 4)
-            ChatInput.PlaceholderText = "Message @" .. GetDisplayName(ReplyTarget.Username)
+if ReplyTarget then
+    ReplyBanner.Visible = true
+    ReplyBanner.Position = UDim2.new(0, 8, 0, 4)
+    ReplyBannerText.Text = "Replying to: " .. GetDisplayName(ReplyTarget.Username)
+    ChatInput.PlaceholderText = "Message @" .. GetDisplayName(ReplyTarget.Username)
         else
             ReplyBanner.Visible = false
         end
@@ -12415,7 +12415,17 @@ local BannedWords = {
     "nig3r",
     "loadstring",
     "https",
-    "pastefy"
+    "pastefy",
+    "porn",
+    "fuck",
+    "fucking",
+    "niger",
+    "nga",
+    "niga",
+    "cock",
+    "shit",
+    "retard",
+    "retarded"
 }
 
 local function ContainsBannedWord(Msg)
@@ -12739,19 +12749,66 @@ local function AddMessage(sender, text, isSystem, senderUserId, messageId, reply
             end
 
             local menuOpenedTick = tick()
-            activePickerMenu = New("Frame", {
-                BackgroundColor3 = Color3.fromRGB(35, 37, 42),
-                Position = UDim2.new(1, -140, 0, 28),
-                Size = UDim2.fromOffset(140, 34),
-                ZIndex = 600,
-                Parent = ActionBar,
-            })
-            New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = activePickerMenu })
-            New("UIStroke", { Color = Color3.fromRGB(88, 101, 242), Parent = activePickerMenu })
-            New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = activePickerMenu })
-            New("UIPadding", { PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = activePickerMenu })
+activePickerMenu = New("ScrollingFrame", {
+    BackgroundColor3 = Color3.fromRGB(35, 37, 42),
+    Position = UDim2.fromOffset(
+        ChatGui.AbsolutePosition.X + ChatGui.AbsoluteSize.X + 8,
+        ChatGui.AbsolutePosition.Y
+    ),
+    Size = UDim2.fromOffset(240, 300),
 
-            local availableEmojis = {"👍", "❤️", "😂", "😮", "😢", "🔥"}
+    CanvasSize = UDim2.fromOffset(0, 0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollBarThickness = 6,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+
+    ZIndex = 600,
+    Parent = ScreenGui,
+})
+
+New("UICorner", {
+    CornerRadius = UDim.new(0, 6),
+    Parent = activePickerMenu
+})
+
+New("UIStroke", {
+    Color = Color3.fromRGB(88, 101, 242),
+    Parent = activePickerMenu
+})
+
+New("UIGridLayout", {
+    CellSize = UDim2.fromOffset(38, 38),
+    CellPadding = UDim2.fromOffset(4, 4),
+    HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Parent = activePickerMenu
+})
+
+New("UIPadding", {
+    PaddingTop = UDim.new(0, 5),
+    PaddingBottom = UDim.new(0, 5),
+    PaddingLeft = UDim.new(0, 5),
+    PaddingRight = UDim.new(0, 5),
+    Parent = activePickerMenu
+})
+
+            local availableEmojis = {
+    "👍", "👎", "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔",
+    "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃",
+    "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜",
+    "🤪", "🤨", "🧐", "🤓", "😎", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟",
+    "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠",
+    "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗",
+    "🤔", "🫡", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", "😦",
+    "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢", "🤮",
+    "🤧", "😷", "🤒", "🤕",
+    "👋", "🤚", "🖐️", "✋", "🖖", "👌", "🤌", "🤏", "✌️", "🤞", "🫰", "🤟",
+    "🤘", "🤙", "👈", "👉", "👆", "👇", "☝️", "✊", "👊", "🤛", "🤜", "👏",
+    "🙌", "👐", "🤲", "🙏", "💪",
+    "🔥", "💯", "⭐", "🌟", "✨", "💥", "🎉", "🎊", "💎", "👑", "🏆", "🎯",
+    "🚀", "💫", "⚡", "☀️", "🌙", "🌈",
+    "🍕", "🍔", "🍟", "🌭", "🍿", "🍩", "🍪", "🍰", "🎂", "🍺", "☕", "❤️‍🔥"
+}
             for _, emoji in ipairs(availableEmojis) do
                 local emojiBtn = New("TextButton", {
                     BackgroundTransparency = 1,
@@ -13337,7 +13394,7 @@ end)
             end
         end
 
-                if #Msg > 500 then AddMessage("System", "Message too long max 500 char.", true); return end
+        if #Msg > 500 then AddMessage("System", "Message too long max 500 char.", true); return end
 if tick() - LastMessageTime < SpamCooldown then AddMessage("System", "Slow down.", true); return end
 if ContainsBannedWord(Msg) then AddMessage("System", "Your message contains a blocked word.", true); return end
 
