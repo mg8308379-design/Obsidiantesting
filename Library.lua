@@ -12425,9 +12425,12 @@ local BannedWords = {
     "cock",
     "shit",
     "retard",
-    "retarded"
+    "retarded",
+    "/e speed",
+    "/speed",
+    "/",
+    "/spawn"
 }
-
 local function ContainsBannedWord(Msg)
     if type(Msg) ~= "string" then return false end
 
