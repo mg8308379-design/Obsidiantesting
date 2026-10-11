@@ -10432,6 +10432,7 @@ local DeniedInviteIds = {}
         [11117216138] = true,
         [6136594189] = true,
         [2327711124] = true,
+        [11797175904] = true,
     }
 
     local function IsAdmin(userId, username)
@@ -11664,16 +11665,23 @@ end)
         Parent = MentionScroll,
     })
 
-    local function PopulateMentionMenu(filterText)
+local function PopulateMentionMenu(filterText)
         for _, child in ipairs(MentionScroll:GetChildren()) do
             if child:IsA("GuiObject") then child:Destroy() end
         end
 
         local matches = {}
+        local filterLower = filterText:lower()
+        
+        -- Loop through users, but cap the search to prevent freezing if the table is massive
+        local maxResultsToFind = 30
         for user in pairs(SeenUsers) do
             local dName = GetDisplayName(user)
-            if user:lower():sub(1, #filterText) == filterText:lower() or dName:lower():sub(1, #filterText) == filterText:lower() then
+            if user:lower():sub(1, #filterText) == filterLower or dName:lower():sub(1, #filterText) == filterLower then
                 table.insert(matches, user)
+                if #matches >= maxResultsToFind then
+                    break -- Stop searching once we have enough matches to display
+                end
             end
         end
 
@@ -11744,7 +11752,7 @@ end)
                     local atIndex = reversed:find("@")
                     if atIndex then
                         local actualIndex = #text - atIndex + 1
-                        text = text:sub(1, actualIndex - 1) .. "@" .. user .. " "
+                        text = text:sub(1, actualIndex - 1) + "@" .. user .. " "
                         replaced = true
                     end
                 elseif text:match("^@([%w_]*)$") then
@@ -11766,7 +11774,6 @@ end)
 
         MentionMenu.Visible = true
     end
-
     local function UpdateMentionState()
         if not ChatInput.TextEditable then
             MentionMenu.Visible = false
