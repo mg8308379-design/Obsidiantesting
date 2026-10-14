@@ -6623,6 +6623,41 @@ end
 
 function Library:CreateWindow(WindowInfo)
     WindowInfo = Library:Validate(WindowInfo, Templates.Window)
+
+    --// Loading screen (runs before the main UI is built) \\--
+    do
+        local Loading = Library:CreateLoading({
+            Title = "Polluted",
+            Icon = 125303123867736,
+            TotalSteps = 4,
+            LoadingIconColor = Color3.fromRGB(255, 83, 0),
+        })
+
+        Loading:SetMessage("Working On It...")
+
+        -- Step 1 (2 seconds)
+        Loading:SetDescription("Connecting to Server")
+        task.wait(2)
+        Loading:SetCurrentStep(1)
+
+        -- Step 2 (1 second)
+        Loading:SetDescription("Checking For Updates")
+        task.wait(1)
+        Loading:SetCurrentStep(2)
+
+        -- Step 3 (1 second)
+        Loading:SetDescription("Loading Chatbox")
+        task.wait(1)
+        Loading:SetCurrentStep(3)
+
+        -- Step 4 (1 second)
+        Loading:SetDescription("Loaded enjoy <3")
+        task.wait(1)
+        Loading:SetCurrentStep(4)
+
+        Loading:Continue() -- closes the loader, main UI builds right after
+    end
+
     local ViewportSize: Vector2 = workspace.CurrentCamera.ViewportSize
     if RunService:IsStudio() and ViewportSize.X <= 5 and ViewportSize.Y <= 5 then
         repeat
@@ -6646,7 +6681,6 @@ function Library:CreateWindow(WindowInfo)
         WindowInfo.Font = Font.fromEnum(WindowInfo.Font)
     end
     WindowInfo.CornerRadius = math.min(WindowInfo.CornerRadius, 20)
-
     --// Old Naming \\--
     if WindowInfo.Compact ~= nil then
         WindowInfo.SidebarCompacted = WindowInfo.Compact
@@ -11141,7 +11175,11 @@ end
     })
     New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = PingSwitch })
     New("UIStroke", { Color = "OutlineColor", Parent = PingSwitch })
-    Library:RemoveFromRegistry(PingSwitch)
+        Library:AddToRegistry(PingSwitch, {
+        BackgroundColor3 = function()
+            return ChatSettings.EnablePings and Library.Scheme.AccentColor or Library.Scheme.MainColor
+        end,
+    })
     New("UIPadding", {
         PaddingBottom = UDim.new(0, 2),
         PaddingLeft = UDim.new(0, 2),
@@ -11223,7 +11261,11 @@ end
     })
     New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = InviteSwitch })
     New("UIStroke", { Color = "OutlineColor", Parent = InviteSwitch })
-    Library:RemoveFromRegistry(InviteSwitch)
+        Library:AddToRegistry(InviteSwitch, {
+        BackgroundColor3 = function()
+            return ChatSettings.EnableInvites and Library.Scheme.AccentColor or Library.Scheme.MainColor
+        end,
+    })
     New("UIPadding", {
         PaddingBottom = UDim.new(0, 2),
         PaddingLeft = UDim.new(0, 2),
@@ -14066,7 +14108,7 @@ function Library:CreateLoading(LoadingInfo)
     table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius / 2), Parent = SliderBar }))
 
     local SliderFill = New("Frame", {
-        BackgroundColor3 = "AccentColor",
+        BackgroundColor3 = Color3.fromRGB(255, 83, 0),
         BorderSizePixel = 0,
         Size = UDim2.fromScale(0, 1),
         Parent = SliderBar,
