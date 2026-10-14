@@ -177,7 +177,7 @@ local Library = {
     TabButtons = {},
     DependencyBoxes = {},
     GroupboxDragTargets = {},
-
+    NotchPillSelections = {},
     KeybindFrame = nil,
     KeybindContainer = nil,
     KeybindToggles = {},
@@ -218,6 +218,14 @@ local Library = {
     CornerRadius = 4,
     CornerRadiusDropdown = false, -- Temporary
 
+    --// Liquid Glass \\--
+    GlassEnabled = false,
+    GlassTransparency = 0.45,
+    GlassBlurSize = 14,
+    GlassOriginals = setmetatable({}, { __mode = "k" }),
+    GlassBlur = nil,
+    Window = nil,
+
     IsLightTheme = false,
     Scheme = {
         BackgroundColor = Color3.fromRGB(15, 15, 15),
@@ -240,6 +248,48 @@ local Library = {
     ImageManager = CustomImageManager,
     ShowCursorBinding = string.sub(tostring({}), 10),
 }
+
+--// Notch Pill Persistence Setup \\--
+local HttpService = game:GetService("HttpService")
+local NotchPillFile = "ObsidianNotchPills.json"
+
+local function LoadNotchPills()
+    if not readfile or not isfile then
+        return {}
+    end
+
+    local ok, data = pcall(function()
+        if not isfile(NotchPillFile) then
+            return "{}"
+        end
+        return readfile(NotchPillFile)
+    end)
+
+    if not ok or not data then
+        return {}
+    end
+
+    local decodedOk, result = pcall(function()
+        return HttpService:JSONDecode(data)
+    end)
+
+    return decodedOk and result or {}
+end
+
+local function SaveNotchPills()
+    if not writefile then
+        return
+    end
+
+    pcall(function()
+        writefile(
+            NotchPillFile,
+            HttpService:JSONEncode(Library.NotchPillSelections)
+        )
+    end)
+end
+
+Library.NotchPillSelections = LoadNotchPills()
 
 if RunService:IsStudio() then
     if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
@@ -1010,6 +1060,156 @@ function Library:UpdateColorsUsingRegistry()
     end
 end
 
+--// Liquid Glass \\--
+function Library:ApplyGlass(Inst, Props)
+    if not Library.GlassEnabled or not Inst:IsA("GuiObject") then return end
+
+    local C = Props and Props.BackgroundColor3
+    if not (C == "BackgroundColor" or C == "MainColor" or typeof(C) == "function") then return end
+
+    local Orig = Library.GlassOriginals[Inst]
+    if Orig == nil then
+        Orig = Inst.BackgroundTransparency
+        Library.GlassOriginals[Inst] = Orig
+    end
+    if Orig >= 1 then return end
+
+    Inst.BackgroundTransparency = math.max(Orig, Library.GlassTransparency)
+
+    if Inst:FindFirstChild("GlassEdge") then return end
+
+    -- soft sheen over the fill (bright top-left, fades toward bottom-right)
+    local Sheen = Instance.new("UIGradient")
+    Sheen.Name = "GlassSheen"
+    Sheen.Rotation = 45
+    Sheen.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(0.5, 0.25),
+        NumberSequenceKeypoint.new(1, 0.1),
+    })
+    Sheen.Parent = Inst
+
+    -- bright rim light on opposite corners
+    local Edge = Instance.new("UIStroke")
+    Edge.Name = "GlassEdge"
+    Edge.Color = Color3.new(1, 1, 1)
+    Edge.Thickness = 1.2
+    Edge.Transparency = 0.2
+    Edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    Edge.Parent = Inst
+
+    local EdgeGrad = Instance.new("UIGradient")
+    EdgeGrad.Rotation = 45
+    EdgeGrad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(0.45, 0.9),
+        NumberSequenceKeypoint.new(0.55, 0.9),
+        NumberSequenceKeypoint.new(1, 0.1),
+    })
+    EdgeGrad.Parent = Edge
+end
+
+function Library:RemoveGlass(Inst)
+    local Orig = Library.GlassOriginals[Inst]
+    if Orig ~= nil then
+        Inst.BackgroundTransparency = Orig
+        Library.GlassOriginals[Inst] = nil
+    end
+
+    local Sheen = Inst:FindFirstChild("GlassSheen")
+    if Sheen then Sheen:Destroy() end
+
+    local Edge = Inst:FindFirstChild("GlassEdge")
+    if Edge then Edge:Destroy() end
+end
+
+function Library:UpdateGlassBlur()
+    local Active = Library.GlassEnabled and Library.Toggled and Library.GlassBlurSize > 0
+
+    if not Active then
+        if Library.GlassBlurConn then
+            Library.GlassBlurConn:Disconnect()
+            Library.GlassBlurConn = nil
+        end
+        if Library.GlassBlur then Library.GlassBlur:Destroy() Library.GlassBlur = nil end
+        if Library.GlassBlurPart then Library.GlassBlurPart:Destroy() Library.GlassBlurPart = nil end
+        return
+    end
+
+    if Library.GlassBlurConn then
+        Library.GlassBlur.NearIntensity = math.clamp(Library.GlassBlurSize / 20, 0, 1)
+        return
+    end
+
+    local Lighting = cloneref(game:GetService("Lighting"))
+    local GuiService = cloneref(game:GetService("GuiService"))
+
+    local DoF = Instance.new("DepthOfFieldEffect")
+    DoF.Name = "ObsidianGlassDoF"
+    DoF.FarIntensity = 0
+    DoF.NearIntensity = math.clamp(Library.GlassBlurSize / 20, 0, 1)
+    DoF.FocusDistance = 1      -- only things nearer than ~1 stud get blurred
+    DoF.InFocusRadius = 1000   -- everything else stays sharp
+    DoF.Parent = Lighting
+    Library.GlassBlur = DoF
+
+    local Part = Instance.new("Part")
+    Part.Name = "ObsidianGlassPane"
+    Part.Anchored = true
+    Part.CanCollide = false
+    Part.CanQuery = false
+    Part.CanTouch = false
+    Part.CastShadow = false
+    Part.Material = Enum.Material.Glass
+    Part.Color = Color3.new(1, 1, 1)
+    Part.Transparency = 0.98
+    Library.GlassBlurPart = Part
+
+    local PaneDepth = 0.25 -- distance in front of the camera (studs)
+
+    Library.GlassBlurConn = RunService.RenderStepped:Connect(function()
+        local Camera = workspace.CurrentCamera
+        local Main = Library.ScreenGui and Library.ScreenGui:FindFirstChild("Main")
+        if not (Camera and Main and Main.Visible) then
+            Part.Parent = nil
+            return
+        end
+
+        local View = Camera.ViewportSize
+        local Inset = GuiService:GetGuiInset().Y
+        local Pos, Size = Main.AbsolutePosition, Main.AbsoluteSize
+
+        local HalfH = math.tan(math.rad(Camera.FieldOfView) / 2) * PaneDepth
+        local HalfW = HalfH * (View.X / View.Y)
+
+        local CenterX = (Pos.X + Size.X / 2) / View.X * 2 - 1
+        local CenterY = 1 - (Pos.Y + Inset + Size.Y / 2) / View.Y * 2
+
+        Part.Size = Vector3.new(Size.X / View.X * 2 * HalfW, Size.Y / View.Y * 2 * HalfH, 0.001)
+        Part.CFrame = Camera.CFrame * CFrame.new(CenterX * HalfW, CenterY * HalfH, -PaneDepth)
+        Part.Parent = Camera
+    end)
+end
+
+function Library:SetGlass(Enabled: boolean)
+    Library.GlassEnabled = Enabled
+
+    for Inst, Props in Library.Registry do
+        if typeof(Inst) == "Instance" and Inst.Parent then
+            Library:RemoveGlass(Inst) -- always reset so new settings are picked up
+            if Enabled then
+                Library:ApplyGlass(Inst, Props)
+            end
+        end
+    end
+
+    if Library.Window then
+        Library.Window:SetCornerRadius(Enabled and 14 or 4)
+    end
+
+    Library:UpdateGlassBlur()
+end
+
 function Library:SetDPIScale(DPIScale: number)
     Library.DPIScale = DPIScale / 70
     Library.MinSize = Library.OriginalMinSize * Library.DPIScale
@@ -1156,6 +1356,11 @@ local function New(ClassName: string, Properties: { [string]: any }): any
         pcall(function()
             Instance.ZIndex = Properties.Parent.ZIndex
         end)
+    end
+
+    --// Liquid Glass: style newly created elements too \\--
+    if Library.GlassEnabled and Library.Registry[Instance] then
+        Library:ApplyGlass(Instance, Library.Registry[Instance])
     end
 
     return Instance
@@ -2175,6 +2380,9 @@ function Library:Unload()
     for _, Tooltip in Tooltips do
         Library:SafeCallback(Tooltip.Destroy, Tooltip)
     end
+
+    Library.GlassEnabled = false
+    Library:UpdateGlassBlur()
 
     Library.Unloaded = true
 
@@ -4123,7 +4331,7 @@ do
 
         local Label = New("TextLabel", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, -40, 1, 0),
+            Size = UDim2.new(1, -58, 1, 0),
             Text = Toggle.Text,
             TextSize = 14,
             TextTransparency = 0.4,
@@ -4145,6 +4353,85 @@ do
             Size = UDim2.fromOffset(32, 18),
             Parent = Button,
         })
+
+
+--// PC-only Notch pill
+local NotchToggle = nil
+local InNotch = Library.NotchPillSelections[tostring(Idx)] == true
+
+local NotchPill = New("TextButton", {
+    AnchorPoint = Vector2.new(1, 0),
+    BackgroundColor3 = Color3.fromRGB(55, 55, 55),
+    Position = UDim2.new(1, -38, 0, 4),
+    Size = UDim2.fromOffset(14, 10),
+    Text = "",
+    Visible = UserInputService.MouseEnabled
+        and not UserInputService.TouchEnabled,
+    ZIndex = Button.ZIndex + 2,
+    Parent = Button,
+})
+
+New("UICorner", {
+    CornerRadius = UDim.new(1, 0),
+    Parent = NotchPill,
+})
+
+local NotchPillStroke = New("UIStroke", {
+    Color = Library.Scheme.OutlineColor,
+    Thickness = 1,
+    Parent = NotchPill,
+})
+
+local function UpdateNotchPill()
+    local Color = InNotch
+        and Color3.fromRGB(40, 200, 100)
+        or Color3.fromRGB(55, 55, 55)
+
+    NotchPill.BackgroundColor3 = Color
+    NotchPillStroke.Color = InNotch
+        and Color
+        or Library.Scheme.OutlineColor
+end
+
+-- Auto-add to the notch on startup if previously saved as selected
+if InNotch then
+    task.defer(function()
+        local Notch = Library.Notch
+        if Notch then
+            NotchToggle = Notch:AddLinkedToggle(Idx)
+            NotchToggle.Button.Visible = true
+        end
+    end)
+end
+
+UpdateNotchPill()
+
+NotchPill.MouseButton1Click:Connect(function()
+    if not (UserInputService.MouseEnabled
+        and not UserInputService.TouchEnabled) then
+        return
+    end
+
+    local Notch = Library.Notch
+    if not Notch then
+        warn("Create the Notch before selecting toggles.")
+        return
+    end
+
+    InNotch = not InNotch
+
+    if not NotchToggle then
+        NotchToggle = Notch:AddLinkedToggle(Idx)
+    end
+    NotchToggle.Button.Visible = InNotch
+
+    Library.NotchPillSelections[tostring(Idx)] = InNotch
+    SaveNotchPills()
+
+    UpdateNotchPill()
+end)
+
+
         New("UICorner", {
             CornerRadius = UDim.new(1, 0),
             Parent = Switch,
@@ -6621,6 +6908,369 @@ function Library:Notify(...)
     return Data
 end
 
+--// Notch (PC only) \\--
+function Library:AddNotch(Info)
+    if Library.IsMobile then
+        return nil -- PC only
+    end
+    if Library.Notch then
+        return Library.Notch -- only ever one notch
+    end
+
+    Info = Info or {}
+    local CollapsedSize = Vector2.new(72, 22)
+    local ExpandedHeight = 40
+    local TopOffset = Info.TopOffset or 0 -- gap from the top of the screen (0 = flush)
+    local NotchTween = TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+
+    local Notch = { Items = {}, Visible = true, Expanded = false, AlwaysOpen = Info.AlwaysOpen == true }
+
+    -- Own ScreenGui with IgnoreGuiInset so it touches the real top of the screen
+    local NotchGui = New("ScreenGui", {
+        Name = "ObsidianNotch",
+        DisplayOrder = 998,
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+    })
+    ParentUI(NotchGui)
+    Library:OnUnload(function()
+        NotchGui:Destroy()
+    end)
+
+    local Holder = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(8, 8, 8),
+        ClipsDescendants = true,
+        Position = UDim2.new(0.5, 0, 0, TopOffset),
+        Size = UDim2.fromOffset(CollapsedSize.X, CollapsedSize.Y),
+        ZIndex = 50,
+        Parent = NotchGui,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 20), Parent = Holder })
+    New("UIStroke", { Color = "OutlineColor", Thickness = 1, Parent = Holder })
+
+    -- little dot shown while minimised
+    local Dot = New("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundColor3 = "AccentColor",
+        Position = UDim2.new(1, -8, 0.5, 0),
+        Size = UDim2.fromOffset(8, 8),
+        Parent = Holder,
+    })
+    New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = Dot })
+
+    -- everything lives in here, fades in/out
+    local Content = New("CanvasGroup", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        AutomaticSize = Enum.AutomaticSize.XY,
+        BackgroundTransparency = 1,
+        GroupTransparency = 1,
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(0, 0),
+        Parent = Holder,
+    })
+    New("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 10),
+        Parent = Content,
+    })
+
+    Notch.Gui = NotchGui
+    Notch.Holder = Holder
+    Notch.Content = Content
+
+   --// Expand / collapse \\--
+    local CachedWidth = 120
+    local Token = 0
+    Content.Visible = false -- hidden while minimised
+
+    local function GetExpandedWidth()
+        -- AbsoluteSize can read 0 while hidden, so remember the last real width
+        if Content.AbsoluteSize.X > 0 then
+            CachedWidth = math.max(Content.AbsoluteSize.X + 28, 120)
+        end
+        return CachedWidth
+    end
+
+local function Apply()
+        Token += 1
+        local MyToken = Token
+        local State = Notch.Expanded
+
+        if State then
+            Content.Visible = true
+        end
+
+        local Size = State and UDim2.fromOffset(GetExpandedWidth(), ExpandedHeight)
+            or UDim2.fromOffset(CollapsedSize.X, CollapsedSize.Y)
+
+        TweenService:Create(Holder, NotchTween, { Size = Size }):Play()
+        TweenService:Create(Content, NotchTween, { GroupTransparency = State and 0 or 1 }):Play()
+        TweenService:Create(Dot, NotchTween, { BackgroundTransparency = State and 1 or 0 }):Play()
+
+        -- Immediately hide content when collapsed to prevent text lingering
+        if not State then
+            Content.Visible = false
+            task.delay(NotchTween.Time, function()
+                if Token == MyToken and not Notch.Expanded then
+                    Content.Visible = false
+                end
+            end)
+        end
+    end
+
+    function Notch:SetExpanded(State)
+        if Notch.Expanded == State then
+            return
+        end
+        Notch.Expanded = State
+        Apply()
+    end
+
+    -- resize smoothly if items get added while open
+    Content:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+        if Notch.Expanded then
+            Apply()
+        end
+    end)
+
+    -- hover detection (polled so it can't get stuck)
+    local LeftAt = 0
+    Library:GiveSignal(RunService.RenderStepped:Connect(function()
+        if Library.Unloaded or not Notch.Visible then
+            return
+        end
+
+        if Notch.AlwaysOpen then
+            Notch:SetExpanded(true)
+            return
+        end
+
+        local MousePos = UserInputService:GetMouseLocation()
+        local Width = Notch.Expanded and GetExpandedWidth() or CollapsedSize.X
+        local Height = Notch.Expanded and ExpandedHeight or CollapsedSize.Y
+        local CenterX = NotchGui.AbsoluteSize.X / 2
+
+        local Hovering = math.abs(MousePos.X - CenterX) <= (Width / 2 + 8)
+            and MousePos.Y >= 0
+            and MousePos.Y <= (TopOffset + Height + 8)
+
+        if Hovering then
+            LeftAt = 0
+            Notch:SetExpanded(true)
+        elseif Notch.Expanded then
+            if LeftAt == 0 then
+                LeftAt = tick()
+            elseif tick() - LeftAt > 0.25 then -- small delay so it doesn't flicker
+                LeftAt = 0
+                Notch:SetExpanded(false)
+            end
+        end
+    end))
+
+    --// Element helpers \\--
+    local Order = 0
+    local function NextOrder()
+        Order += 1
+        return Order
+    end
+
+    function Notch:SetVisible(Visible)
+        Notch.Visible = Visible
+        NotchGui.Enabled = Visible
+    end
+
+    function Notch:AddDivider()
+        New("Frame", {
+            BackgroundColor3 = "OutlineColor",
+            LayoutOrder = NextOrder(),
+            Size = UDim2.fromOffset(1, 20),
+            Parent = Content,
+        })
+    end
+
+    function Notch:AddLabel(Text)
+        local Label = { Text = Text }
+        local TextLabel = New("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
+            LayoutOrder = NextOrder(),
+            Size = UDim2.fromOffset(0, 26),
+            Text = Text,
+            TextSize = 13,
+            Parent = Content,
+        })
+        function Label:SetText(NewText)
+            Label.Text = NewText
+            TextLabel.Text = NewText
+        end
+        Label.Instance = TextLabel
+        return Label
+    end
+
+    -- FPS | Ping | Time (safe to call more than once)
+    function Notch:AddStats()
+        if Notch.StatLabel then
+            return Notch.StatLabel
+        end
+
+        local StatLabel = Notch:AddLabel("-- fps  |  -- ms  |  " .. os.date("%H:%M:%S"))
+        Notch.StatLabel = StatLabel
+
+        local Stats = cloneref(game:GetService("Stats"))
+        local Frames, Last = 0, tick()
+
+        Library:GiveSignal(RunService.RenderStepped:Connect(function()
+            Frames += 1
+            if tick() - Last >= 1 then
+                local FPS = Frames
+                Frames = 0
+                Last = tick()
+
+                local Ping = 0
+                pcall(function()
+                    Ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+                end)
+                StatLabel:SetText(string.format("%d fps  |  %d ms  |  %s", FPS, Ping, os.date("%H:%M:%S")))
+            end
+        end))
+
+        return StatLabel
+    end
+
+    -- Standalone toggle with optional keybind (Key = Enum.KeyCode name, e.g. "X")
+    function Notch:AddToggle(Text, Default, Callback, Key)
+local Toggle = {
+    Value = Default == true,
+    Text = Text,
+    Callback = Callback,
+    Button = nil,
+}
+
+        local Button = New("TextButton", {
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundColor3 = "MainColor",
+            LayoutOrder = NextOrder(),
+            Size = UDim2.fromOffset(0, 26),
+            Text = "",
+            Parent = Content,
+        })
+        New("UICorner", { CornerRadius = UDim.new(0, 13), Parent = Button })
+        New("UIStroke", { Color = "OutlineColor", Parent = Button })
+        New("UIPadding", {
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
+            Parent = Button,
+        })
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 6),
+            Parent = Button,
+        })
+
+        local StateDot = New("Frame", {
+            BackgroundColor3 = "OutlineColor",
+            LayoutOrder = 1,
+            Size = UDim2.fromOffset(8, 8),
+            Parent = Button,
+        })
+        New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = StateDot })
+
+        local Label = New("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
+            LayoutOrder = 2,
+            Size = UDim2.fromOffset(0, 26),
+            Text = Text,
+            TextSize = 13,
+            TextTransparency = 0.5,
+            Parent = Button,
+        })
+
+        if Key then
+            New("TextLabel", {
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundTransparency = 1,
+                LayoutOrder = 3,
+                Size = UDim2.fromOffset(0, 26),
+                Text = "[" .. Key .. "]",
+                TextSize = 11,
+                TextTransparency = 0.6,
+                Parent = Button,
+            })
+        end
+
+        function Toggle:Display()
+            TweenService:Create(StateDot, Library.TweenInfo, {
+                BackgroundColor3 = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.OutlineColor,
+            }):Play()
+            TweenService:Create(Label, Library.TweenInfo, {
+                TextTransparency = Toggle.Value and 0 or 0.5,
+            }):Play()
+        end
+
+        function Toggle:SetValue(Value)
+            Toggle.Value = Value
+            Toggle:Display()
+            Library:SafeCallback(Toggle.Callback, Value)
+        end
+
+        Button.MouseButton1Click:Connect(function()
+            Toggle:SetValue(not Toggle.Value)
+        end)
+
+        if Key then
+            Library:GiveSignal(UserInputService.InputBegan:Connect(function(Input, Processed)
+                if Processed or UserInputService:GetFocusedTextBox() then
+                    return
+                end
+                if Input.KeyCode.Name == Key then
+                    Toggle:SetValue(not Toggle.Value)
+                end
+            end))
+        end
+
+Toggle.Button = Button
+Toggle:Display()
+if Toggle.Value then
+    Library:SafeCallback(Callback, true)
+end
+
+        table.insert(Notch.Items, Toggle)
+        return Toggle
+    end
+
+    -- Mirrors an existing Toggles[Idx] from your menu (synced both ways)
+    function Notch:AddLinkedToggle(Idx, Text, Key)
+        local Linked = Toggles[Idx]
+        assert(Linked, "Toggle '" .. tostring(Idx) .. "' doesn't exist yet - add it to the notch after creating it.")
+
+        local NotchToggle
+        NotchToggle = Notch:AddToggle(Text or Linked.Text, Linked.Value, function(Value)
+            if Linked.Value ~= Value then
+                Linked:SetValue(Value)
+            end
+        end, Key)
+
+        local OldSetValue = Linked.SetValue
+        Linked.SetValue = function(self, Value)
+            OldSetValue(self, Value)
+            if NotchToggle.Value ~= Linked.Value then
+                NotchToggle.Value = Linked.Value
+                NotchToggle:Display()
+            end
+        end
+
+        return NotchToggle
+    end
+
+    Library.Notch = Notch
+    return Notch
+end
 function Library:CreateWindow(WindowInfo)
     WindowInfo = Library:Validate(WindowInfo, Templates.Window)
 
@@ -6776,6 +7426,7 @@ end
 
         return (ok2 and decoded) or {}
     end
+
 
 
 local function ReindexSide(Side)
@@ -8369,12 +9020,33 @@ local ExecutorName = (identifyexecutor and identifyexecutor())
     end
 
     if WindowInfo.BackgroundImage then
-        function Window:SetBackgroundImage(Image: string)
-            assert(typeof(Image) == "string", "Expected string for Image got: " .. typeof(Image))
+function Window:SetBackgroundImage(Image: string)
+    assert(typeof(Image) == "string", "Expected string for Image got: " .. typeof(Image))
 
-            BackgroundImage.Image = Image
-            WindowInfo.BackgroundImage = Image
-        end
+    if not BackgroundImage then
+        BackgroundImage = New("ImageLabel", {
+            Position = UDim2.fromScale(0, 0),
+            Size = UDim2.fromScale(1, 1),
+            ScaleType = Enum.ScaleType.Stretch,
+            ZIndex = 999,
+            BackgroundTransparency = 1,
+            ImageTransparency = 0.75,
+            Visible = false,
+            Parent = MainFrame,
+        })
+        table.insert(
+            Library.Corners,
+            New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = BackgroundImage,
+            })
+        )
+    end
+
+    BackgroundImage.Image = Image
+    BackgroundImage.Visible = Image ~= ""
+    WindowInfo.BackgroundImage = Image
+end
     end
 
     function Window:SetFooter(footer: string)
@@ -10211,6 +10883,7 @@ if SavedTabOrder and SavedTabOrder[TabButton.Name] then
         end
 
         MainFrame.Visible = Library.Toggled
+        Library:UpdateGlassBlur()
 
         if WindowInfo.UnlockMouseWhileOpen then
             ModalElement.Modal = Library.Toggled
@@ -11714,7 +12387,7 @@ local function PopulateMentionMenu(filterText)
 
         local matches = {}
         local filterLower = filterText:lower()
-        
+
         -- Loop through users, but cap the search to prevent freezing if the table is massive
         local maxResultsToFind = 30
         for user in pairs(SeenUsers) do
@@ -13847,6 +14520,8 @@ end
 ------ end of chatbox
 
     --testing388811111
+    Library.Window = Window
+    Library:AddNotch() -- shows the minimised pill even if you never add toggles
     return Window
 end
 
